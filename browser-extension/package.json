@@ -1,0 +1,17 @@
+{
+  "name": "gale-browser-extension",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "tsc --noEmit && node build.mjs",
+    "test": "node build.mjs --tests && node --test dist-tests/rules.test.js"
+  },
+  "devDependencies": {
+    "@types/chrome": "0.3.7",
+    "@types/node": "26.6.6",
+    "esbuild": "0.28.2",
+    "typescript": "7.0.2"
+  }
+}

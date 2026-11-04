@@ -1,0 +1,7 @@
+{
+  "name": "com.gale.nmh",
+  "description": "Gale Download Manager",
+  "path": "gale-nmh.exe",
+  "type": "stdio",
+  "allowed_origins": ["chrome-extension://abiednbonckeaneafpemajipbefdfblo/"]
+}

@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="ui.css" />
+    <style>
+      body { width: 340px; padding: 14px; }
+      header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+      .actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 12px; }
+      .row button { flex: 1; height: auto; min-height: 30px; padding: 5px 8px; font-size: 12px; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Gale</h1>
+      <span class="row muted"><span id="dot" class="dot"></span><span id="status">Checking…</span></span>
+    </header>
+    <label class="check"><input type="checkbox" id="enabled" /> Send downloads to Gale</label>
+    <div class="row">
+      <button id="pause">Pause 10 minutes</button>
+      <button id="bypass">Let next download through Chrome</button>
+    </div>
+    <p id="note" class="muted"></p>
+    <h2>Recent downloads</h2>
+    <ul id="recent" class="list"><li class="muted"><span>—</span></li></ul>
+    <div class="actions">
+      <button class="accent" id="open">Open Gale</button>
+      <button id="options">Settings</button>
+      <button id="diag">Diagnostics</button>
+    </div>
+    <pre id="diagOut" class="muted" hidden style="white-space: pre-wrap; user-select: text"></pre>
+    <script src="popup.js"></script>
+  </body>
+</html>

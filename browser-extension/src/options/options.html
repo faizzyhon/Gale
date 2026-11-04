@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Gale settings</title>
+    <link rel="stylesheet" href="ui.css" />
+    <style>
+      body { max-width: 620px; margin: 0 auto; padding: 24px; }
+      fieldset { border: 0; padding: 0; margin: 0; }
+      .field { margin: 12px 0; }
+      .field > span { display: block; margin-bottom: 4px; color: var(--fg2); font-size: 12px; }
+    </style>
+  </head>
+  <body>
+    <h1>Gale browser settings</h1>
+    <p class="muted">Rules set in the Gale app (Settings → Browser) always take priority.</p>
+    <form id="form">
+      <h2>Interception</h2>
+      <label class="check"><input type="checkbox" name="enabled" /> Send downloads to Gale</label>
+      <div class="field">
+        <span>Which downloads</span>
+        <select name="mode">
+          <option value="all">All downloads</option>
+          <option value="types">Only these file types</option>
+        </select>
+      </div>
+      <div class="field">
+        <span>File types (space separated, no dots)</span>
+        <textarea name="fileTypes" rows="3"></textarea>
+      </div>
+      <div class="field">
+        <span>Only if larger than (MB, 0 = any size)</span>
+        <input type="number" name="minSizeMB" min="0" step="1" />
+      </div>
+      <div class="field">
+        <span>Never intercept these sites (one per line, subdomains included)</span>
+        <textarea name="excludedDomains" rows="4"></textarea>
+      </div>
+      <label class="check"><input type="checkbox" name="askFirst" /> Ask in Gale before each download starts</label>
+      <h2>Privacy</h2>
+      <label class="check"><input type="checkbox" name="sendCookies" /> Send the site's cookies with downloads (needed for sites you are signed in to)</label>
+      <p class="muted">Cookies go only to Gale on this computer, are kept in memory, and are never saved.</p>
+      <h2>Media</h2>
+      <label class="check"><input type="checkbox" name="showMediaButton" /> Show a Download button on videos and audio</label>
+      <p><button class="accent" type="submit">Save</button> <span id="saved" class="muted"></span></p>
+    </form>
+    <script src="options.js"></script>
+  </body>
+</html>

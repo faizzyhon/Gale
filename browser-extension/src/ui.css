@@ -1,0 +1,23 @@
+:root {
+  --bg: #f3f3f3; --surface: #fff; --fg: #1b1b1b; --fg2: #5c5c5c; --line: rgba(0,0,0,.08); --accent: #005fb8; --accent-fg: #fff; --bad: #c42b1c; --ok: #0f7b0f;
+  color-scheme: light dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #202020; --surface: #2b2b2b; --fg: #fff; --fg2: #c5c5c5; --line: rgba(255,255,255,.08); --accent: #60cdff; --accent-fg: #003a5c; --bad: #ff99a4; --ok: #6ccb5f; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 13px "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif; }
+h1 { font: 600 16px "Segoe UI Variable Display", "Segoe UI", sans-serif; margin: 0; }
+h2 { font-size: 13px; font-weight: 600; margin: 18px 0 8px; }
+button { height: 30px; padding: 0 12px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); color: var(--fg); font: inherit; cursor: pointer; }
+button.accent { background: var(--accent); color: var(--accent-fg); border-color: transparent; }
+button:disabled { opacity: .45; cursor: default; }
+input[type=text], input[type=number], textarea, select { width: 100%; padding: 6px 8px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); color: var(--fg); font: inherit; }
+label.check { display: flex; align-items: center; gap: 8px; margin: 8px 0; }
+.muted { color: var(--fg2); font-size: 12px; }
+.dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; background: var(--bad); }
+.dot.on { background: var(--ok); }
+.row { display: flex; align-items: center; gap: 8px; }
+.list { list-style: none; margin: 0; padding: 0; }
+.list li { display: flex; gap: 8px; padding: 6px 0; border-top: 1px solid var(--line); }
+.list li span:first-child { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

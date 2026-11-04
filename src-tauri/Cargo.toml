@@ -1,0 +1,39 @@
+[package]
+name = "gale"
+description = "Gale Download Manager"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+name = "gale_app"
+crate-type = ["rlib"] # desktop only; cdylib/staticlib are for mobile targets
+
+[build-dependencies]
+tauri-build = { version = "=2.7.4", features = [] }
+
+[dependencies]
+gale-core = { path = "../crates/gale-core" }
+tauri = { version = "=2.12.5", features = ["tray-icon", "image-png"] }
+tauri-plugin-opener = "=2.7.2"
+tauri-plugin-dialog = "=2.8.4"
+tauri-plugin-single-instance = "=2.5.5"
+tauri-plugin-notification = "=2.8.0"
+tauri-plugin-autostart = "=2.7.0"
+tokio-util.workspace = true
+chrono.workspace = true
+uuid.workspace = true
+tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+tracing-appender = "0.2"
+
+[target.'cfg(windows)'.dependencies]
+keyring = { version = "=3.6.3", features = ["windows-native"] }
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_System_Registry"] }
+
+[target.'cfg(not(windows))'.dependencies]
+# Dev/test builds only: in-memory credential store.
+keyring = { version = "=3.6.3" }

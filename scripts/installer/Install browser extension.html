@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Connect Gale to Chrome or Edge</title>
+    <style>
+      body { margin: 0; background: #f3f3f3; color: #1b1b1b; font: 15px "Segoe UI Variable Text", "Segoe UI", sans-serif; }
+      main { max-width: 640px; margin: 48px auto; padding: 0 24px; }
+      h1 { font: 600 28px "Segoe UI Variable Display", "Segoe UI", sans-serif; margin: 0 0 8px; }
+      ol { padding-left: 22px; } li { margin: 18px 0; line-height: 1.5; }
+      code, .path { font-family: "Cascadia Mono", Consolas, monospace; background: #fff; border: 1px solid rgba(0,0,0,.1); border-radius: 4px; padding: 2px 6px; }
+      .path { display: inline-block; margin-top: 6px; user-select: all; word-break: break-all; }
+      button { margin-left: 8px; height: 28px; padding: 0 10px; border: 1px solid rgba(0,0,0,.12); border-radius: 4px; background: #fff; font: inherit; font-size: 13px; cursor: pointer; }
+      .muted { color: #5c5c5c; font-size: 13px; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Connect Gale to your browser</h1>
+      <p class="muted">Takes about a minute. Works in Google Chrome and Microsoft Edge.</p>
+      <ol>
+        <li>Open a new tab and go to <code>chrome://extensions</code> (Chrome) or <code>edge://extensions</code> (Edge).</li>
+        <li>Turn on <b>Developer mode</b> (top-right in Chrome, left side in Edge).</li>
+        <li>
+          Click <b>Load unpacked</b> and choose this folder:<br />
+          <span class="path" id="path">browser-extension (next to this page)</span><button id="copy" hidden>Copy</button>
+        </li>
+        <li>Pin the Gale icon to the toolbar. Its popup should say <b>Connected</b> while Gale is running.</li>
+      </ol>
+      <p class="muted">Keep the folder where it is: the browser loads the extension from it. Uninstalling Gale removes it.</p>
+    </main>
+    <script>
+      // Show the real folder path for this installation (this page sits next to it).
+      if (location.protocol === "file:") {
+        const dir = decodeURIComponent(location.pathname).replace(/^\/([A-Za-z]:)/, "$1").replace(/\/[^/]*$/, "").replaceAll("/", "\\");
+        const p = dir + "\\browser-extension";
+        document.getElementById("path").textContent = p;
+        const b = document.getElementById("copy");
+        b.hidden = false;
+        b.onclick = () => navigator.clipboard.writeText(p).then(() => (b.textContent = "Copied"));
+      }
+    </script>
+  </body>
+</html>

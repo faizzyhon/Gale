@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Gale per-user MSI (no admin rights needed). Built with wixl (msitools) by build-msi.sh. -->
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <Product Id="*" Name="Gale Download Manager" Language="1033" Version="$(var.Version)"
+           Manufacturer="Faizan (faizzyhon)" UpgradeCode="832f8633-bf40-4c8b-a0dd-40baad025cd2">
+    <Package InstallerVersion="500" Compressed="yes" InstallScope="perUser"
+             Description="Gale Download Manager $(var.Version)" Comments="Multi-connection download manager for Windows" />
+    <MajorUpgrade DowngradeErrorMessage="A newer version of Gale is already installed." />
+    <Media Id="1" Cabinet="gale.cab" EmbedCab="yes" />
+    <Icon Id="GaleIcon" SourceFile="$(var.Src)/icon.ico" />
+    <Property Id="ARPPRODUCTICON" Value="GaleIcon" />
+    <Property Id="ARPURLINFOABOUT" Value="https://faizzyhon.com" />
+    <Property Id="ARPNOMODIFY" Value="1" />
+
+    <Directory Id="TARGETDIR" Name="SourceDir">
+      <Directory Id="LocalAppDataFolder">
+        <Directory Id="ProgramsDir" Name="Programs">
+          <Directory Id="INSTALLDIR" Name="Gale">
+            <Directory Id="ExtDir" Name="browser-extension">
+              <Directory Id="ExtIconsDir" Name="icons" />
+            </Directory>
+          </Directory>
+        </Directory>
+      </Directory>
+      <Directory Id="ProgramMenuFolder">
+        <Directory Id="StartMenuDir" Name="Gale" />
+      </Directory>
+      <Directory Id="DesktopFolder" />
+    </Directory>
+
+    <DirectoryRef Id="INSTALLDIR">
+      <Component Id="AppFiles" Guid="d44b119e-2573-4897-8ae5-3e906a5b96a9">
+        <RegistryValue Root="HKCU" Key="Software\Gale" Name="AppFiles" Type="integer" Value="1" KeyPath="yes" />
+        <File Id="GaleExe" Name="gale.exe" Source="$(var.Src)/gale.exe" />
+        <File Id="NmhExe" Name="gale-nmh.exe" Source="$(var.Src)/gale-nmh.exe" />
+        <File Id="NmhManifest" Name="com.gale.nmh.json" Source="$(var.Src)/com.gale.nmh.json" />
+        <File Id="ExtGuide" Name="Install browser extension.html" Source="$(var.Src)/Install browser extension.html" />
+        <RemoveFolder Id="RmInstallDir" On="uninstall" />
+      </Component>
+      <!-- Chrome and Edge find the native messaging host through these per-user keys. -->
+      <Component Id="NativeHostRegistration" Guid="3301e8ee-7d73-4def-b153-152b895a826c">
+        <RegistryValue Root="HKCU" Key="Software\Google\Chrome\NativeMessagingHosts\com.gale.nmh" Type="string" Value="[INSTALLDIR]com.gale.nmh.json" KeyPath="yes" />
+        <RegistryValue Root="HKCU" Key="Software\Microsoft\Edge\NativeMessagingHosts\com.gale.nmh" Type="string" Value="[INSTALLDIR]com.gale.nmh.json" />
+      </Component>
+    </DirectoryRef>
+
+    <DirectoryRef Id="ExtDir">
+      <Component Id="ExtensionFiles" Guid="96192694-b0ec-4936-915a-9e78ba4313ee">
+        <RegistryValue Root="HKCU" Key="Software\Gale" Name="ExtensionFiles" Type="integer" Value="1" KeyPath="yes" />
+        <File Id="ExtManifest" Name="manifest.json" Source="$(var.Ext)/manifest.json" />
+        <File Id="ExtBg" Name="background.js" Source="$(var.Ext)/background.js" />
+        <File Id="ExtContent" Name="content.js" Source="$(var.Ext)/content.js" />
+        <File Id="ExtPopupHtml" Name="popup.html" Source="$(var.Ext)/popup.html" />
+        <File Id="ExtPopupJs" Name="popup.js" Source="$(var.Ext)/popup.js" />
+        <File Id="ExtOptionsHtml" Name="options.html" Source="$(var.Ext)/options.html" />
+        <File Id="ExtOptionsJs" Name="options.js" Source="$(var.Ext)/options.js" />
+        <File Id="ExtCss" Name="ui.css" Source="$(var.Ext)/ui.css" />
+        <RemoveFolder Id="RmExtDir" On="uninstall" />
+      </Component>
+    </DirectoryRef>
+    <DirectoryRef Id="ExtIconsDir">
+      <Component Id="ExtensionIcons" Guid="c6e10bb0-3505-4dc7-97b1-dd4efc869e48">
+        <RegistryValue Root="HKCU" Key="Software\Gale" Name="ExtensionIcons" Type="integer" Value="1" KeyPath="yes" />
+        <File Id="ExtIcon16" Name="16.png" Source="$(var.Ext)/icons/16.png" />
+        <File Id="ExtIcon32" Name="32.png" Source="$(var.Ext)/icons/32.png" />
+        <File Id="ExtIcon48" Name="48.png" Source="$(var.Ext)/icons/48.png" />
+        <File Id="ExtIcon128" Name="128.png" Source="$(var.Ext)/icons/128.png" />
+        <RemoveFolder Id="RmExtIconsDir" On="uninstall" />
+      </Component>
+    </DirectoryRef>
+
+    <DirectoryRef Id="StartMenuDir">
+      <Component Id="StartMenuShortcuts" Guid="94f554de-8902-4d9d-88c7-ae08610f2115">
+        <Shortcut Id="StartGale" Name="Gale" Description="Gale Download Manager" Target="[INSTALLDIR]gale.exe" WorkingDirectory="INSTALLDIR" Icon="GaleIcon" />
+        <Shortcut Id="StartExtGuide" Name="Install browser extension" Description="Connect Gale to Chrome or Edge" Target="[INSTALLDIR]Install browser extension.html" WorkingDirectory="INSTALLDIR" />
+        <RemoveFolder Id="RmStartMenuDir" On="uninstall" />
+        <RegistryValue Root="HKCU" Key="Software\Gale" Name="StartMenu" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+    </DirectoryRef>
+    <DirectoryRef Id="DesktopFolder">
+      <Component Id="DesktopShortcut" Guid="7ff6ef0e-bf28-4b48-9a77-d569c9d08bc7">
+        <Shortcut Id="DesktopGale" Name="Gale" Description="Gale Download Manager" Target="[INSTALLDIR]gale.exe" WorkingDirectory="INSTALLDIR" Icon="GaleIcon" />
+        <RegistryValue Root="HKCU" Key="Software\Gale" Name="Desktop" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+    </DirectoryRef>
+    <DirectoryRef Id="INSTALLDIR">
+      <Component Id="RegistryCleanup" Guid="97b7ff88-85ad-4106-bd16-03e11cd7ecc4">
+        <RegistryValue Root="HKCU" Key="Software\Gale" Name="RegistryCleanup" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+    </DirectoryRef>
+
+    <!-- On uninstall only: gale.exe removes its "start with Windows" entry, then exits. -->
+    <CustomAction Id="CleanupAutostart" FileKey="GaleExe" ExeCommand="--uninstall-cleanup" Execute="immediate" Return="ignore" />
+    <InstallExecuteSequence>
+      <Custom Action="CleanupAutostart" Before="RemoveFiles">REMOVE="ALL" AND NOT UPGRADINGPRODUCTCODE</Custom>
+    </InstallExecuteSequence>
+
+    <Feature Id="Main" Title="Gale" Level="1">
+      <ComponentRef Id="AppFiles" />
+      <ComponentRef Id="NativeHostRegistration" />
+      <ComponentRef Id="ExtensionFiles" />
+      <ComponentRef Id="ExtensionIcons" />
+      <ComponentRef Id="StartMenuShortcuts" />
+      <ComponentRef Id="DesktopShortcut" />
+      <ComponentRef Id="RegistryCleanup" />
+    </Feature>
+  </Product>
+</Wix>

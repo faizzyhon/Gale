@@ -1,0 +1,31 @@
+[workspace]
+resolver = "2"
+members = ["crates/gale-core", "crates/gale-nmh", "src-tauri"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+rust-version = "1.80"
+
+[workspace.dependencies]
+tokio = { version = "1.47", features = ["rt-multi-thread", "macros", "fs", "io-util", "sync", "time", "net", "io-std"] }
+tokio-util = "0.7"
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "stream", "socks", "http2", "charset"] }
+futures-util = "0.3"
+sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "sqlite", "macros", "migrate", "chrono"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+tracing = "0.1"
+url = { version = "2", features = ["serde"] }
+chrono = { version = "0.4", default-features = false, features = ["clock", "serde"] }
+sha2 = "0.10"
+hex = "0.4"
+uuid = { version = "1", features = ["v4", "serde"] }
+rand = "0.9"
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true

@@ -1,0 +1,25 @@
+[package]
+name = "gale-nmh"
+description = "Chrome/Edge native messaging host for Gale Download Manager"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "gale-nmh"
+path = "src/main.rs"
+
+[dependencies]
+gale-core = { path = "../gale-core" }
+tokio = { workspace = true, features = ["io-std", "process"] }
+serde_json.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_System_Pipes", "Win32_System_Threading"] }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["process", "io-util"] }
+
+[build-dependencies]
+# Same as Tauri: static VC runtime + Windows' built-in UCRT, so no VC++ Redistributable is needed.
+static_vcruntime = "3.0"
