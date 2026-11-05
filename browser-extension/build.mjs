@@ -1,14 +1,16 @@
 // Bundles each entry point and copies static files into dist/ (load dist/ as the unpacked extension).
 import { build } from "esbuild";
-import { cpSync, mkdirSync, rmSync } from "node:fs";
+import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 
 const tests = process.argv.includes("--tests");
+const store = process.argv.includes("--store"); // Chrome Web Store build, see src/shared/store.ts
+const out = store ? "dist-store" : "dist";
 if (tests) {
   rmSync("dist-tests", { recursive: true, force: true });
-  await build({ entryPoints: ["tests/rules.test.ts"], bundle: true, platform: "node", format: "esm", outdir: "dist-tests" });
+  await build({ entryPoints: ["tests/rules.test.ts"], bundle: true, platform: "node", format: "esm", outdir: "dist-tests", define: { __STORE__: "false" } });
 } else {
-  rmSync("dist", { recursive: true, force: true });
-  mkdirSync("dist", { recursive: true });
+  rmSync(out, { recursive: true, force: true });
+  mkdirSync(out, { recursive: true });
   await build({
     entryPoints: {
       background: "src/background/index.ts",
@@ -19,10 +21,15 @@ if (tests) {
     bundle: true,
     format: "iife", // content scripts cannot be modules
     target: "chrome116",
-    outdir: "dist",
+    outdir: out,
+    define: { __STORE__: String(store) },
     minify: true,
     legalComments: "none",
   });
-  for (const f of ["manifest.json", "src/popup/popup.html", "src/options/options.html", "src/ui.css"]) cpSync(f, `dist/${f.split("/").pop()}`);
-  cpSync("icons", "dist/icons", { recursive: true });
+  // The Chrome Web Store assigns its own ID and rejects a manifest "key"; local builds keep it for a fixed ID.
+  const manifest = JSON.parse(readFileSync("manifest.json", "utf8"));
+  if (store) delete manifest.key;
+  writeFileSync(`${out}/manifest.json`, JSON.stringify(manifest, null, 2));
+  for (const f of ["src/popup/popup.html", "src/options/options.html", "src/ui.css"]) cpSync(f, `${out}/${f.split("/").pop()}`);
+  cpSync("icons", `${out}/icons`, { recursive: true });
 }

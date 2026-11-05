@@ -9,6 +9,7 @@ use gale_core::db::{DashboardStats, Db, Download, DownloadStatus, HistoryEntry, 
 use gale_core::engine::{self, ProbeResult, RequestHeaders, SegmentState};
 use gale_core::grabber::{self, GrabOptions, GrabResult};
 use gale_core::manager::AddOptions;
+use gale_core::media::MediaInfo;
 use gale_core::queue::{Queue, QueueInput, SchedulerJob};
 use serde::Serialize;
 use tauri::{AppHandle, Manager, State};
@@ -65,12 +66,82 @@ pub async fn list_downloads(state: State<'_, AppState>) -> Res<Vec<Download>> {
 
 /// `pending_id` links a browser download confirmed in the Add dialog to its cookies (held in Rust).
 #[tauri::command]
-pub async fn add_download(state: State<'_, AppState>, mut opts: AddOptions, pending_id: Option<String>) -> Res<i64> {
+pub async fn add_download(app: AppHandle, state: State<'_, AppState>, mut opts: AddOptions, pending_id: Option<String>) -> Res<i64> {
     if let Some(p) = pending_id {
         opts.headers = state.take_pending(&p).unwrap_or_default();
         opts.source = Some("browser".into());
     }
-    add_with_policy(&state, opts).await
+    let starts_now = opts.start && opts.queue_id.is_none();
+    let id = add_with_policy(&state, opts).await?;
+    if starts_now {
+        crate::windows::want_progress_window(&app, id).await;
+    }
+    Ok(id)
+}
+
+#[tauri::command]
+pub async fn get_download(state: State<'_, AppState>, id: i64) -> Res<Download> {
+    Ok(state.manager.db().get_download(id).await?)
+}
+
+/// What the browser sent for a download awaiting confirmation (no cookies/headers).
+#[tauri::command]
+pub fn get_pending(state: State<'_, AppState>, pending_id: String) -> Res<serde_json::Value> {
+    state.pending.lock().unwrap().get(&pending_id).map(|p| p.info.clone()).ok_or_else(|| err("expired", "this download request has expired"))
+}
+
+/// Size / resumability for the pop-up, fetched with the browser's cookies (they stay in Rust).
+#[tauri::command]
+pub async fn probe_pending(state: State<'_, AppState>, pending_id: String) -> Res<ProbeResult> {
+    let (url, headers) = {
+        let p = state.pending.lock().unwrap();
+        let p = p.get(&pending_id).ok_or_else(|| err("expired", "this download request has expired"))?;
+        (p.info["url"].as_str().unwrap_or_default().to_string(), p.headers.clone())
+    };
+    let u = gale_core::security::validate_url(&url)?;
+    let client = engine::build_client(&state.manager.config())?;
+    let name = state.pending.lock().unwrap().get(&pending_id).and_then(|p| p.info["fileName"].as_str().map(str::to_owned));
+    Ok(engine::probe(&client, &u, &headers, name.as_deref()).await?)
+}
+
+#[tauri::command]
+pub fn show_main_window(app: AppHandle) {
+    crate::show_main(&app);
+}
+
+const REPO: &str = "https://github.com/faizzyhon/Gale";
+
+/// About-page links. The page passes a name, never a URL, so it cannot open arbitrary addresses.
+pub fn link_url(name: &str) -> Option<String> {
+    Some(match name {
+        "website" => "https://faizzyhon.com".into(),
+        "github" => "https://github.com/faizzyhon".into(),
+        "linkedin" => "https://www.linkedin.com/in/faizzyhon/".into(),
+        "repo" => REPO.into(),
+        "issues" => format!("{REPO}/issues"),
+        "releases" => format!("{REPO}/releases"),
+        "privacy" => format!("{REPO}/blob/main/PRIVACY.md"),
+        "terms" => format!("{REPO}/blob/main/TERMS.md"),
+        "license" => format!("{REPO}/blob/main/LICENSE"),
+        "notices" => format!("{REPO}/blob/main/scripts/installer/THIRD-PARTY-NOTICES.txt"),
+        _ => return None,
+    })
+}
+
+#[tauri::command]
+pub fn open_link(app: AppHandle, name: String) -> Result<(), CommandError> {
+    let url = link_url(&name).ok_or_else(|| err("invalid", "unknown link"))?;
+    app.opener().open_url(url, None::<&str>).map_err(|e| err("open_failed", e.to_string()))
+}
+
+#[cfg(test)]
+mod link_tests {
+    #[test]
+    fn only_known_links_open() {
+        assert_eq!(super::link_url("website").as_deref(), Some("https://faizzyhon.com"));
+        assert!(super::link_url("https://evil.example").is_none());
+        assert!(super::link_url("").is_none());
+    }
 }
 
 #[derive(Serialize)]
@@ -106,8 +177,10 @@ pub async fn add_batch(state: State<'_, AppState>, urls: Vec<String>, save_dir: 
 }
 
 #[tauri::command]
-pub async fn resume_download(state: State<'_, AppState>, id: i64) -> Res<()> {
-    Ok(state.manager.start(id).await?)
+pub async fn resume_download(app: AppHandle, state: State<'_, AppState>, id: i64) -> Res<()> {
+    state.manager.start(id).await?;
+    crate::windows::want_progress_window(&app, id).await;
+    Ok(())
 }
 
 #[tauri::command]
@@ -121,8 +194,10 @@ pub async fn cancel_download(state: State<'_, AppState>, id: i64) -> Res<()> {
 }
 
 #[tauri::command]
-pub async fn restart_download(state: State<'_, AppState>, id: i64) -> Res<()> {
-    Ok(state.manager.restart(id).await?)
+pub async fn restart_download(app: AppHandle, state: State<'_, AppState>, id: i64) -> Res<()> {
+    state.manager.restart(id).await?;
+    crate::windows::want_progress_window(&app, id).await;
+    Ok(())
 }
 
 /// `delete_file` must come from an explicit confirmation in the UI.
@@ -209,6 +284,9 @@ pub async fn save_settings(app: AppHandle, state: State<'_, AppState>, settings:
         let al = app.autolaunch();
         let r = if s.start_with_windows { al.enable() } else { al.disable() };
         r.map_err(|e| err("autostart", format!("could not change startup setting: {e}")))?;
+        if s.start_with_windows {
+            crate::startup::write_run_entry();
+        }
     }
     state.manager.db().set_setting(settings::KEY, &s).await?;
     state.set_settings(s.clone());
@@ -409,4 +487,46 @@ pub async fn list_notifications(state: State<'_, AppState>) -> Res<Vec<Notificat
 #[tauri::command]
 pub async fn mark_notifications_read(state: State<'_, AppState>) -> Res<()> {
     Ok(state.manager.db().mark_notifications_read().await?)
+}
+
+// ---------------------------------------------------------------------------------------------
+// Video / adaptive streaming (yt-dlp + FFmpeg)
+
+/// Title and quality options for a video page or HLS/DASH URL. Add it with `add_download` + `media`.
+#[tauri::command]
+pub async fn probe_media(state: State<'_, AppState>, url: String) -> Res<MediaInfo> {
+    Ok(state.manager.extract_media(&url).await?)
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MediaToolsInfo {
+    available: bool,
+    ytdlp: Option<String>,
+    ffmpeg: Option<String>,
+    error: Option<String>,
+}
+
+#[tauri::command]
+pub async fn media_tools_info(state: State<'_, AppState>) -> Res<MediaToolsInfo> {
+    let t = match state.manager.media_tools() {
+        Ok(t) => t,
+        Err(e) => return Ok(MediaToolsInfo { available: false, ytdlp: None, ffmpeg: None, error: Some(e.to_string()) }),
+    };
+    Ok(match t.versions().await {
+        Ok((y, f)) => MediaToolsInfo { available: true, ytdlp: Some(y), ffmpeg: Some(f), error: None },
+        Err(e) => MediaToolsInfo { available: false, ytdlp: None, ffmpeg: None, error: Some(e.to_string()) },
+    })
+}
+
+/// Sites change often; yt-dlp must be kept current. Updates the bundled copy in place.
+#[tauri::command]
+pub async fn update_ytdlp(app: AppHandle, state: State<'_, AppState>) -> Res<String> {
+    // Per-user copy: the installed one in Program Files is not writable without admin rights.
+    let dir = app.path().app_local_data_dir().map_err(|e| err("io", e.to_string()))?.join("tools");
+    let mut tools = state.manager.media_tools()?;
+    let (out, path) = tools.update_ytdlp(&dir).await?;
+    tools.ytdlp = path;
+    state.manager.set_media_tools(Some(tools));
+    Ok(out.trim().to_string())
 }

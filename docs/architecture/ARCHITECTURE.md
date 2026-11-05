@@ -12,7 +12,8 @@ architecture; deviations must be recorded in `docs/architecture/DECISIONS.md`.
 | Persistence | SQLite, migrations, FK, indexes, transactions, all UI data from DB | `crates/gale-core/src/db`, `crates/gale-core/migrations` |
 | Browser | MV3 extension, native messaging, interception per user rules, context menus, media detection (no DRM bypass) | `browser-extension/`, `src-tauri/src/native_messaging` |
 | Scheduling | Multiple queues, priorities, scheduler that survives restart | `crates/gale-core/src/queue`, `.../scheduler` (Phase 6) |
-| Windows | Tray, toasts, autostart, Credential Manager, NSIS/MSI installer, clean uninstall, no admin at runtime | `src-tauri/src/system` (Phase 7) |
+| Windows | Tray, toasts, autostart, Credential Manager, all-users MSI (admin to install, in-place updates), clean uninstall, no admin at runtime | `src-tauri/src/system` (Phase 7) |
+| Popup windows | Per-download progress window (`download-<id>`) and browser capture popup (`capture-<id>`): frameless webviews of the same bundle, routed by URL hash, restricted by `capabilities/default.json`; the capture popup only gets an opaque pending id, cookies/headers stay in Rust | `src-tauri/src/windows.rs`, `src/windows/` |
 | Security | Path traversal protection, filename sanitisation, TLS always verified, parameterised SQL, restricted IPC | `crates/gale-core/src/security` |
 
 ## 2. Process & component architecture
@@ -56,7 +57,7 @@ Key decisions:
 | Reserved names (`CON`, `NUL`, `COM1`…), trailing dots/spaces, `<>:"/\|?*` | `security::sanitize_filename` rewrites them (unit-tested). |
 | Files locked by AV / indexer during rename | Finalise with retrying rename (5 × 200 ms back-off) before reporting failure. |
 | Sparse/pre-allocated files | `set_len` pre-allocation; NTFS zero-fills lazily so this is cheap. |
-| Chrome NM manifest lookup | HKCU `Software\Google\Chrome\NativeMessagingHosts\com.gale.nmh` → per-user install, no admin. |
+| Chrome NM manifest lookup | HKLM `Software\Google\Chrome\NativeMessagingHosts\com.gale.nmh` (and Edge's key), written by the all-users MSI. |
 | Chrome cannot hand over every download (blob:, data:, POST forms, some auth flows) | Extension only intercepts http(s) GET downloads it can reproduce; everything else is left to Chrome. Documented in UI. |
 | Cookies for authenticated downloads | Sent from the extension per request (`chrome.cookies` for that URL only), held in memory, never written to SQLite or logs. |
 | Shutdown-after-completion | `InitiateSystemShutdownEx` via `shutdown /s /t 60` equivalent API, preceded by a cancellable 60 s toast/dialog. |
@@ -141,6 +142,10 @@ own limit to host is 4 GiB; we cap far lower). Same framing on the named pipe.
 { "v":1, "id":"…", "cmd":"get_rules" }          // interception settings owned by the app
 { "v":1, "id":"…", "cmd":"recent", "payload":{ "limit":10 } }
 { "v":1, "id":"…", "cmd":"show_app" }
+{ "v":1, "id":"…", "cmd":"add_media",      "payload":{ "url":"<page>", "title":"…" } }   // opens Gale's video dialog
+{ "v":1, "id":"…", "cmd":"probe_media",    "payload":{ "url":"<page>" } }                // qualities for the page menu (yt-dlp, seconds)
+{ "v":1, "id":"…", "cmd":"download_media", "payload":{ "url":"<page>", "title":"…", "kind":"hls|dash|video|audio",
+               "choice":{ "type":"video", "maxHeight":720 } | { "type":"audio", "mp3":true }, "estimatedSize":123 } }
 // host → extension
 { "v":1, "id":"…", "ok":true,  "result":{…} }
 { "v":1, "id":"…", "ok":false, "error":{ "code":"invalid_url|not_running|rejected|internal", "message":"…" } }

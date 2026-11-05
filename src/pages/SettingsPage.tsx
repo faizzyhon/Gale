@@ -4,7 +4,7 @@ import { Button, Field, inputCls } from "../components/ui";
 import { api, errorMessage } from "../services/api";
 import { useDownloads } from "../stores/downloads";
 import { toastError, toastInfo } from "../stores/toast";
-import type { AppSettings, BrowserStatus, ConnectionTest, SettingsView } from "../types";
+import type { AppSettings, BrowserStatus, ConnectionTest, MediaToolsInfo, SettingsView } from "../types";
 import { date } from "../utils/format";
 
 const TABS = ["General", "Downloads", "Browser", "Network", "Security", "Advanced"] as const;
@@ -114,6 +114,12 @@ export function SettingsPage() {
                 </Check>
                 <Check checked={draft.startWithWindows} onChange={(v) => set("startWithWindows", v)} hint="Starts in the tray so scheduled downloads and the browser extension work">
                   Start Gale when I sign in to Windows
+                </Check>
+                <Check checked={draft.showProgressWindow} onChange={(v) => set("showProgressWindow", v)} hint="A small window per download with speed, time left and connections">
+                  Show a progress window when a download starts
+                </Check>
+                <Check checked={draft.closeWindowWhenDone} onChange={(v) => set("closeWindowWhenDone", v)} hint="Otherwise it stays open with Open / Open folder buttons">
+                  Close the progress window automatically when the download finishes
                 </Check>
                 <Check checked={draft.minimizeToTray} onChange={(v) => set("minimizeToTray", v)} hint="Downloads keep running; quit from the tray icon">
                   Closing the window keeps Gale running in the tray
@@ -298,10 +304,40 @@ function NetworkTab({ draft, set, onPasswordChange }: { draft: SettingsView; set
   );
 }
 
+function MediaToolsSection() {
+  const [info, setInfo] = useState<MediaToolsInfo | null>(null);
+  const [updating, setUpdating] = useState(false);
+  const load = () => api.mediaTools().then(setInfo, toastError);
+  useEffect(() => void load(), []);
+  return (
+    <section className="flex flex-col gap-2">
+      <h3 className="text-[14px] font-semibold">Video tools</h3>
+      <p className="text-[12px] text-fg-3">Video pages and HLS/DASH streams use yt-dlp and FFmpeg, installed with Gale. Sites change often; update yt-dlp if a site stops working.</p>
+      {info && (
+        <p className={`text-[12px] ${info.available ? "text-fg-2" : "text-bad"}`}>
+          {info.available ? `yt-dlp ${info.ytdlp} · ${info.ffmpeg}` : info.error}
+        </p>
+      )}
+      <div>
+        <Button
+          disabled={!info?.available || updating}
+          onClick={() => {
+            setUpdating(true);
+            api.updateYtdlp().then((m) => (toastInfo(m.split("\n").pop() || "yt-dlp updated"), load()), toastError).finally(() => setUpdating(false));
+          }}
+        >
+          {updating ? "Updating…" : "Update yt-dlp"}
+        </Button>
+      </div>
+    </section>
+  );
+}
+
 function AdvancedTab({ onReset }: { onReset: (s: SettingsView) => void }) {
   const [confirmReset, setConfirmReset] = useState(false);
   return (
     <>
+      <MediaToolsSection />
       <section className="flex flex-col gap-2">
         <h3 className="text-[14px] font-semibold">Database</h3>
         <p className="text-[12px] text-fg-3">Your download list, history, queues, schedules and settings. Backups are consistent even while downloading.</p>

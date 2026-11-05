@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Privacy policy · Gale Download Manager</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="How Gale Download Manager handles your data: everything stays on your PC.">
+<meta name="author" content="Muhammad Faizan">
+<meta property="og:title" content="Privacy policy · Gale Download Manager">
+<meta property="og:description" content="How Gale Download Manager handles your data: everything stays on your PC.">
+<meta property="og:image" content="assets/img/downloads-list.webp">
+<link rel="icon" href="assets/favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Familjen+Grotesk:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="assets/site.css">
+<script src="assets/site.js"></script>
+</head>
+<body>
+<header class="topbar">
+  <div class="wrap">
+    <a class="brand" href="index.html"><img src="assets/favicon.png" alt="" width="30" height="30">Gale</a>
+    <nav class="nav" id="nav" aria-label="Main"><a href="index.html">Home</a><a href="download.html">Download</a><a href="guide.html">Guide</a><a href="faq.html">FAQ</a><a href="changelog.html">What's new</a><a href="about.html">About</a></nav>
+    <div class="bar-actions">
+      <a class="btn btn-donate btn-small" href="support.html" data-donate><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 8h1a4 4 0 0 1 0 8h-1"/><path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z"/><path d="M6 2v2M10 2v2M14 2v2"/></svg><span>Donate</span></a>
+      <button class="icon-btn" id="theme" type="button" aria-label="Switch light or dark theme"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg></button>
+      <button class="icon-btn menu-toggle" id="menu" type="button" aria-label="Menu" aria-controls="nav" aria-expanded="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+    </div>
+  </div>
+</header>
+<main>
+
+<div class="wrap">
+  <div class="page-head"><span class="eyebrow">Legal</span><h1>Privacy policy</h1></div>
+  <div class="prose" style="padding-bottom:72px"><p><b>Effective date:</b> 5 November 2026 <b>Applies to:</b> the Gale Download Manager app for Windows and the Gale browser extension for Chrome and Edge <b>Developer:</b> Muhammad Faizan — <a href="https://faizzyhon.com">faizzyhon.com</a> — faizzyhon@gmail.com</p>
+<h2>Summary</h2>
+<p>Gale works entirely on your computer. It has no accounts, no ads, no analytics and no telemetry. The developer does not run any server for Gale and does not receive, collect, sell or share any of your data.</p>
+<h2>What the app stores on your computer</h2>
+<p>To work, Gale keeps the following in a local database and settings file in your Windows user profile (<code>%APPDATA%\com.faizzyhon.gale</code>):</p>
+<ul><li>your download list and history: web address, file name, size, save folder, status, dates</li><li>your settings, categories, queues, schedules and site rules</li><li>a short log of what the browser extension sent to Gale (shown in Settings → Browser)</li><li>in-app notifications</li></ul>
+<p>Diagnostic logs are written to <code>%LOCALAPPDATA%\com.faizzyhon.gale\logs</code>. They contain download ids, error codes and error messages only, never cookies or request headers.</p>
+<p>If you set a proxy password, it is saved in <b>Windows Credential Manager</b>, not in the database or settings file.</p>
+<p>None of this leaves your computer unless you copy it yourself (for example with Settings → Advanced → Back up).</p>
+<h2>What the browser extension does with your data</h2>
+<p>The extension only talks to the Gale app on the same computer, through Chrome's native messaging. It does not send anything to the developer or to any other server.</p>
+<ul><li><b>Downloads you start:</b> the address, file name, size, type and referring page of downloads that match your interception rules are passed to Gale so Gale can download them.</li><li><b>Cookies:</b> if "Send the site's cookies with downloads" is on (it is by default), the cookies for that one download address are passed to Gale so downloads from sites you are signed in to work. Gale holds them in memory for that download only; they are never written to disk or logs. You can turn this off in the extension options.</li><li><b>Media on pages:</b> to show the Download button on videos, the extension notes the addresses of video and audio streams a page loads. This list stays in the extension's memory for that tab and is cleared when the tab closes.</li><li><b>Links you choose:</b> "Download all links" and "Download selected links" read the links on the current page only when you pick that menu item.</li><li><b>Settings:</b> the extension's own settings are saved with Chrome's storage. If you use Chrome Sync, Chrome syncs them with your Google account like any other extension setting.</li></ul>
+<h2>Network connections</h2>
+<p>Gale connects only to:</p>
+<ul><li>the servers you download files from (including video sites, when you download a video)</li><li>your proxy server, if you set one</li><li>GitHub, only when you click "Update yt-dlp" in Settings, to fetch the latest yt-dlp release</li></ul>
+<p>Gale does not check for updates by itself and does not contact the developer.</p>
+<h2>Your control</h2>
+<ul><li>Remove any download from the list at any time (right-click → Remove).</li><li>Turn off browser interception, cookies or the media button in the extension options.</li><li>Uninstalling Gale removes the program and its browser and startup registrations. Your downloaded files and your list in <code>%APPDATA%\com.faizzyhon.gale</code> are kept so you do not lose them; delete that folder to remove everything.</li></ul>
+<h2>Children</h2>
+<p>Gale is a general-purpose utility and is not directed at children. It collects no personal information from anyone.</p>
+<h2>Changes</h2>
+<p>If this policy changes, the new version will be published at <a href="https://github.com/faizzyhon/Gale/blob/main/PRIVACY.md">https://github.com/faizzyhon/Gale/blob/main/PRIVACY.md</a> with a new effective date.</p>
+<h2>Contact</h2>
+<p>Questions about privacy: faizzyhon@gmail.com, or open an issue at <a href="https://github.com/faizzyhon/Gale/issues">https://github.com/faizzyhon/Gale/issues</a>.</p></div>
+</div>
+
+</main>
+<footer>
+  <div class="wrap">
+    <div class="foot">
+      <div>
+        <a class="brand" href="index.html"><img src="assets/favicon.png" alt="" width="30" height="30">Gale</a>
+        <p class="small">A free, open-source download manager for Windows 10 and 11. Version 0.4.0.</p>
+      </div>
+      <div><h4>Product</h4><ul><li><a href="download.html">Download</a></li><li><a href="guide.html">User guide</a></li><li><a href="faq.html">FAQ</a></li><li><a href="changelog.html">What's new</a></li></ul></div>
+      <div><h4>Project</h4><ul><li><a href="https://github.com/faizzyhon/Gale">Source code</a></li><li><a href="https://github.com/faizzyhon/Gale/releases">Releases</a></li><li><a href="https://github.com/faizzyhon/Gale/issues">Report a problem</a></li><li><a href="support.html">Support Gale</a></li></ul></div>
+      <div><h4>Legal</h4><ul><li><a href="privacy.html">Privacy policy</a></li><li><a href="terms.html">Terms of use</a></li><li><a href="disclaimer.html">Disclaimer</a></li><li><a href="https://github.com/faizzyhon/Gale/blob/main/LICENSE">MIT License</a></li></ul></div>
+      <div><h4>Developer</h4><ul><li><a href="about.html">About</a></li><li><a href="https://faizzyhon.com">faizzyhon.com</a></li><li><a href="https://github.com/faizzyhon">GitHub</a></li><li><a href="https://www.linkedin.com/in/faizzyhon/">LinkedIn</a></li></ul></div>
+    </div>
+    <div class="legal"><span>© 2026 Muhammad Faizan. Released under the MIT License.</span><span>Gale is independent software and is not affiliated with Google, Microsoft or any website it works with.</span></div>
+  </div>
+</footer>
+</body>
+</html>

@@ -1,9 +1,11 @@
+pub mod startup;
 mod commands;
 mod native_messaging;
 mod settings;
 mod system;
+mod windows;
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -14,7 +16,7 @@ use gale_core::limits::{HostLimiter, RateLimiter};
 use gale_core::manager::{EventSink, Manager};
 use gale_core::{ipc, protocol};
 use settings::AppSettings;
-use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
+use tauri::menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Emitter, Manager as _, WindowEvent};
 use tauri_plugin_notification::NotificationExt;
@@ -23,12 +25,14 @@ use tokio_util::sync::CancellationToken;
 /// Browser download waiting for the user to confirm in the Add dialog. Headers never reach the webview.
 pub struct PendingAdd {
     pub headers: RequestHeaders,
+    /// What the browser told us, shown in the "Download File Info" pop-up (never the headers).
+    pub info: serde_json::Value,
     created: Instant,
 }
 
 impl PendingAdd {
-    pub fn new(headers: RequestHeaders) -> Self {
-        Self { headers, created: Instant::now() }
+    pub fn new(headers: RequestHeaders, info: serde_json::Value) -> Self {
+        Self { headers, info, created: Instant::now() }
     }
 }
 
@@ -40,6 +44,8 @@ pub struct AppState {
     pub pending: Mutex<HashMap<String, PendingAdd>>,
     pub grabs: Mutex<HashMap<String, CancellationToken>>,
     pub shutdown: Mutex<Option<CancellationToken>>,
+    /// Downloads the user just started; their progress window opens when they become active.
+    pub window_wanted: Mutex<HashSet<i64>>,
     quitting: AtomicBool,
 }
 
@@ -77,11 +83,12 @@ struct ProgressEvent<'a> {
     bytes_per_sec: f64,
     active_connections: u32,
     segments: &'a [gale_core::engine::SegmentState],
+    stage: Option<&'static str>,
 }
 
 impl EventSink for TauriEvents {
     fn progress(&self, id: i64, t: &Tick) {
-        let ev = ProgressEvent { id, written: t.written, total: t.total, bytes_per_sec: t.bytes_per_sec, active_connections: t.active_connections, segments: &t.segments };
+        let ev = ProgressEvent { id, written: t.written, total: t.total, bytes_per_sec: t.bytes_per_sec, active_connections: t.active_connections, segments: &t.segments, stage: t.stage };
         if let Err(e) = self.0.emit("download://progress", ev) {
             tracing::warn!(error = %e, "emit progress failed");
         }
@@ -90,6 +97,9 @@ impl EventSink for TauriEvents {
     fn changed(&self, d: &Download) {
         if let Err(e) = self.0.emit("download://changed", d) {
             tracing::warn!(error = %e, "emit changed failed");
+        }
+        if d.status.is_active() {
+            windows::open_progress_if_wanted(&self.0, d.id);
         }
     }
 
@@ -207,17 +217,49 @@ fn apply_pending_restore(db_path: &std::path::Path) {
     }
 }
 
+/// Tray "Speed limit" presets (KB/s, 0 = no limit). Any other value set in Settings → Network shows no tick.
+const SPEED_PRESETS: [(u64, &str); 4] = [(0, "Unlimited"), (256, "256 KB/s"), (1024, "1 MB/s"), (5120, "5 MB/s")];
+
+/// Total speed limit from the tray: applies at once to running downloads and is saved like Settings → Network.
+fn set_speed_limit(app: &AppHandle, kbps: u64) {
+    let st = app.state::<AppState>();
+    let mut s = st.settings();
+    s.global_limit_kbps = kbps;
+    st.global.set_rate(kbps * 1024);
+    st.set_settings(s.clone());
+    let db = st.manager.db().clone();
+    tauri::async_runtime::spawn(async move {
+        if let Err(e) = db.set_setting(settings::KEY, &s).await {
+            tracing::warn!(error = %e, "could not save speed limit");
+        }
+    });
+}
+
 fn build_tray(app: &AppHandle) -> tauri::Result<()> {
     let show = MenuItem::with_id(app, "show", "Show Gale", true, None::<&str>)?;
     let pause = MenuItem::with_id(app, "pause_all", "Pause all downloads", true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", "Quit Gale", true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&show, &pause, &PredefinedMenuItem::separator(app)?, &quit])?;
+    let current = app.state::<AppState>().settings().global_limit_kbps;
+    let presets = SPEED_PRESETS
+        .iter()
+        .map(|(k, label)| CheckMenuItem::with_id(app, format!("limit_{k}"), *label, true, *k == current, None::<&str>))
+        .collect::<tauri::Result<Vec<_>>>()?;
+    let preset_refs: Vec<&dyn tauri::menu::IsMenuItem<tauri::Wry>> = presets.iter().map(|i| i as _).collect();
+    let speed = Submenu::with_items(app, "Speed limit", true, &preset_refs)?;
+    let menu = Menu::with_items(app, &[&show, &pause, &speed, &PredefinedMenuItem::separator(app)?, &quit])?;
     TrayIconBuilder::with_id("main")
         .icon(app.default_window_icon().cloned().expect("bundled icon"))
         .tooltip("Gale")
         .menu(&menu)
         .show_menu_on_left_click(false)
-        .on_menu_event(|app, e| match e.id.as_ref() {
+        .on_menu_event(move |app, e| match e.id.as_ref() {
+            id if id.starts_with("limit_") => {
+                let Ok(kbps) = id["limit_".len()..].parse::<u64>() else { return };
+                set_speed_limit(app, kbps);
+                for (item, (k, _)) in presets.iter().zip(SPEED_PRESETS) {
+                    let _ = item.set_checked(k == kbps);
+                }
+            }
             "show" => show_main(app),
             "pause_all" => {
                 let m = app.state::<AppState>().manager.clone();
@@ -238,15 +280,20 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
     Ok(())
 }
 
-/// Removes HKCU\\…\\Run\\Gale (written by the autostart plugin). Missing value is fine.
+/// Removes this user's HKCU\\…\\Run\\Gale (autostart) and browser host keys. Missing entries are fine.
 pub fn uninstall_cleanup() {
     #[cfg(windows)]
     {
-        use windows_sys::Win32::System::Registry::{RegDeleteKeyValueW, HKEY_CURRENT_USER};
+        use windows_sys::Win32::System::Registry::{RegDeleteKeyValueW, RegDeleteKeyW, HKEY_CURRENT_USER};
         let w = |s: &str| s.encode_utf16().chain(Some(0)).collect::<Vec<u16>>();
         let (key, name) = (w(r"Software\Microsoft\Windows\CurrentVersion\Run"), w("Gale"));
-        // SAFETY: both strings are NUL-terminated UTF-16 buffers alive for the call.
-        unsafe { RegDeleteKeyValueW(HKEY_CURRENT_USER, key.as_ptr(), name.as_ptr()) };
+        // SAFETY: all strings are NUL-terminated UTF-16 buffers alive for the calls.
+        unsafe {
+            RegDeleteKeyValueW(HKEY_CURRENT_USER, key.as_ptr(), name.as_ptr());
+            for k in startup::NATIVE_HOST_KEYS {
+                RegDeleteKeyW(HKEY_CURRENT_USER, w(k).as_ptr());
+            }
+        }
     }
 }
 
@@ -280,6 +327,13 @@ pub fn run() {
                 let m = Manager::new(db, cfg, s.max_simultaneous as usize, Arc::new(TauriEvents(handle.clone())))?;
                 Ok::<_, gale_core::Error>((m, s))
             })?;
+            // yt-dlp/FFmpeg ship in tools/ next to gale.exe; without them only video downloads are unavailable.
+            let exe_dir = std::env::current_exe().ok().and_then(|p| p.parent().map(|d| d.to_path_buf()));
+            let user_tools = handle.path().app_local_data_dir().ok().map(|d| d.join("tools"));
+            match gale_core::media::MediaTools::locate(exe_dir.as_deref(), user_tools.as_deref()) {
+                Ok(t) => manager.set_media_tools(Some(t)),
+                Err(e) => tracing::warn!(error = %e, "video downloads unavailable"),
+            }
             tauri::async_runtime::spawn({
                 let m = manager.clone();
                 async move { m.spawn_background() }
@@ -292,6 +346,7 @@ pub fn run() {
                 pending: Mutex::new(HashMap::new()),
                 grabs: Mutex::new(HashMap::new()),
                 shutdown: Mutex::new(None),
+                window_wanted: Mutex::new(HashSet::new()),
                 quitting: AtomicBool::new(false),
             });
 
@@ -319,8 +374,11 @@ pub fn run() {
                 use tauri_plugin_autostart::ManagerExt;
                 let want = app.state::<AppState>().settings().start_with_windows;
                 let al = handle.autolaunch();
-                if want && !al.is_enabled().unwrap_or(false) {
-                    let _ = al.enable();
+                if want {
+                    if !al.is_enabled().unwrap_or(false) {
+                        let _ = al.enable();
+                    }
+                    startup::write_run_entry(); // quoted path of this exe (Program Files has a space)
                 }
             }
             build_tray(&handle)?;
@@ -330,7 +388,8 @@ pub fn run() {
             Ok(())
         })
         .on_window_event(|window, event| {
-            if let WindowEvent::CloseRequested { api, .. } = event {
+            // Only the main window goes to the tray; progress and pop-up windows really close.
+            if let (WindowEvent::CloseRequested { api, .. }, "main") = (event, window.label()) {
                 let st = window.state::<AppState>();
                 if st.settings().minimize_to_tray && !st.quitting.load(Ordering::SeqCst) {
                     api.prevent_close();
@@ -378,6 +437,14 @@ pub fn run() {
             commands::reset_settings,
             commands::browser_status,
             commands::quit_app,
+            commands::probe_media,
+            commands::get_download,
+            commands::get_pending,
+            commands::probe_pending,
+            commands::show_main_window,
+            commands::open_link,
+            commands::media_tools_info,
+            commands::update_ytdlp,
         ])
         .build(tauri::generate_context!())
         .expect("failed to build Gale")

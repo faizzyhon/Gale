@@ -6,7 +6,6 @@ import type {
   AppNotification,
   AppSettings,
   BatchResult,
-  BrowserAddRequest,
   BrowserStatus,
   Category,
   CommandError,
@@ -16,6 +15,9 @@ import type {
   GrabOptions,
   GrabResult,
   HistoryEntry,
+  MediaChoice,
+  MediaInfo,
+  MediaToolsInfo,
   ProbeResult,
   ProgressEvent,
   Queue,
@@ -33,6 +35,7 @@ export interface AddOptions {
   referrer?: string;
   queueId?: number;
   start: boolean;
+  media?: { choice: MediaChoice; kind: string; title?: string; expectedBytes?: number };
 }
 
 const on = <T>(event: string, cb: (p: T) => void): Promise<UnlistenFn> => listen<T>(event, (e) => cb(e.payload));
@@ -81,6 +84,17 @@ export const api = {
   startGrab: (grabId: string, opts: GrabOptions) => invoke<GrabResult>("start_grab", { grabId, opts }),
   cancelGrab: (grabId: string) => invoke<void>("cancel_grab", { grabId }),
 
+  getDownload: (id: number) => invoke<Download>("get_download", { id }),
+  getPending: (pendingId: string) => invoke<{ url: string; fileName: string | null; referrer: string | null; fileSize: number | null; mime: string | null }>("get_pending", { pendingId }),
+  probePending: (pendingId: string) => invoke<ProbeResult>("probe_pending", { pendingId }),
+  showMain: () => invoke<void>("show_main_window"),
+  /** Opens one of the About page links by name (the app holds the URLs). */
+  openLink: (name: "website" | "github" | "linkedin" | "repo" | "issues" | "releases" | "privacy" | "terms" | "license" | "notices") =>
+    invoke<void>("open_link", { name }),
+  probeMedia: (url: string) => invoke<MediaInfo>("probe_media", { url }),
+  mediaTools: () => invoke<MediaToolsInfo>("media_tools_info"),
+  updateYtdlp: () => invoke<string>("update_ytdlp"),
+
   notifications: () => invoke<AppNotification[]>("list_notifications"),
   markNotificationsRead: () => invoke<void>("mark_notifications_read"),
 
@@ -96,8 +110,8 @@ export const api = {
 
   onProgress: (cb: (e: ProgressEvent) => void) => on("download://progress", cb),
   onChanged: (cb: (d: Download) => void) => on("download://changed", cb),
-  onBrowserAdd: (cb: (r: BrowserAddRequest) => void) => on("browser://add", cb),
   onBrowserBatch: (cb: (r: { urls: string[]; referrer: string | null }) => void) => on("browser://batch", cb),
+  onBrowserMedia: (cb: (r: { url: string; title: string | null }) => void) => on("browser://media", cb),
   onNotification: (cb: () => void) => on("notification://new", cb),
   onShutdownCountdown: (cb: (seconds: number) => void) => on("system://shutdown-countdown", cb),
   onShutdownCancelled: (cb: () => void) => on("system://shutdown-cancelled", cb),

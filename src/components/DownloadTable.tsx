@@ -19,7 +19,18 @@ import { useDownloads } from "../stores/downloads";
 import { toastError } from "../stores/toast";
 import type { Download } from "../types";
 import { bytes, date, eta, extension, speed } from "../utils/format";
-import { ProgressBar } from "./ui";
+import { AnimatePresence, motion } from "framer-motion";
+import { ProgressBar } from "./motion";
+
+const STAGE_LABEL: Record<string, string> = {
+  extracting: "Reading video info",
+  downloading: "Downloading",
+  merging: "Merging audio + video",
+  converting: "Converting",
+  processing: "Processing",
+  verifying: "Verifying",
+};
+const KIND_LABEL: Record<Download["kind"], string> = { http: "", hls: "Video · HLS", dash: "Video · DASH", video: "Video", audio: "Audio" };
 
 const STATUS_LABEL: Record<Download["status"], string> = {
   queued: "Queued",
@@ -91,12 +102,18 @@ export function DownloadTable({ rows, onProperties, onRemove }: Props) {
               </tr>
             </thead>
             <tbody>
+              <AnimatePresence initial={false}>
               {rows.map((d) => {
                 const l = live[d.id];
                 const frac = d.totalBytes ? d.downloadedBytes / d.totalBytes : d.status === "completed" ? 1 : null;
                 const isSel = d.id === selected;
                 return (
-                  <tr
+                  <motion.tr
+                    layout="position"
+                    initial={{ opacity: 0, y: -6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, x: 12, transition: { duration: 0.15 } }}
+                    transition={{ duration: 0.2, ease: "easeOut" }}
                     key={d.id}
                     onClick={() => setSelected(d.id)}
                     onDoubleClick={() => (d.status === "completed" ? act.open(d) : onProperties(d))}
@@ -111,10 +128,13 @@ export function DownloadTable({ rows, onProperties, onRemove }: Props) {
                     <td className="max-w-[300px] truncate px-3" title={d.fileName}>
                       {d.fileName}
                     </td>
-                    <td className="px-3 text-fg-2">{extension(d.fileName)}</td>
+                    <td className="px-3 whitespace-nowrap text-fg-2">{d.kind === "http" ? extension(d.fileName) : KIND_LABEL[d.kind]}</td>
                     <td className="w-[160px] px-3">
                       <div className="flex items-center gap-2">
-                        <ProgressBar value={frac} status={d.status} />
+                        {/* fixed width: auto table layout squeezes a %-width bar to nothing */}
+                        <div className="w-24 shrink-0">
+                          <ProgressBar value={frac} status={d.status} />
+                        </div>
                         <span className="tabular w-10 text-right text-[12px] text-fg-2">{frac != null ? `${Math.floor(frac * 100)}%` : ""}</span>
                       </div>
                     </td>
@@ -124,22 +144,25 @@ export function DownloadTable({ rows, onProperties, onRemove }: Props) {
                     <td className="tabular px-3 whitespace-nowrap text-fg-2">
                       {d.status === "downloading" ? eta(d.totalBytes != null ? d.totalBytes - d.downloadedBytes : null, l?.bytesPerSec) : "—"}
                     </td>
-                    <td className="tabular px-3 text-fg-2">{d.status === "downloading" ? `${l?.activeConnections ?? 0}/${d.connections}` : d.connections}</td>
+                    <td className="tabular px-3 text-fg-2">{d.kind !== "http" ? "—" : d.status === "downloading" ? `${l?.activeConnections ?? 0}/${d.connections}` : d.connections}</td>
                     <td className="px-3 whitespace-nowrap">
                       <span className={d.status === "failed" ? "text-bad" : d.status === "completed" ? "text-ok" : ""} title={d.errorMessage ?? undefined}>
                         {/* All bytes on disk but not yet marked complete = size/checksum check + rename in progress */}
-                        {d.status === "downloading" && d.totalBytes != null && d.downloadedBytes >= d.totalBytes && !l?.activeConnections
-                          ? "Verifying"
-                          : STATUS_LABEL[d.status]}
+                        {d.status === "downloading" && l?.stage
+                          ? STAGE_LABEL[l.stage]
+                          : d.status === "downloading" && d.kind === "http" && d.totalBytes != null && d.downloadedBytes >= d.totalBytes && !l?.activeConnections
+                            ? "Verifying"
+                            : STATUS_LABEL[d.status]}
                       </span>
                     </td>
                     <td className="px-3 whitespace-nowrap text-fg-2">{date(d.createdAt)}</td>
                     <td className="max-w-[240px] truncate px-3 text-fg-2" title={d.saveDir}>
                       {d.saveDir}
                     </td>
-                  </tr>
+                  </motion.tr>
                 );
               })}
+              </AnimatePresence>
             </tbody>
           </table>
         )}

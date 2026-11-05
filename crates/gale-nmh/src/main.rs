@@ -58,7 +58,7 @@ impl Relay {
     async fn forward(&mut self, request: Request) -> Response {
         let id = request.id.clone();
         // Only these commands may launch the app; ping must report the real state.
-        let may_launch = matches!(request.command, Command::AddDownload(_) | Command::AddBatch(_) | Command::ShowApp);
+        let may_launch = matches!(request.command, Command::AddDownload(_) | Command::AddBatch(_) | Command::AddMedia(_) | Command::ProbeMedia(_) | Command::DownloadMedia(_) | Command::ShowApp);
         for attempt in 0..2 {
             if self.conn.is_none() {
                 if let Err(e) = self.connect(may_launch).await {
@@ -106,8 +106,15 @@ fn verify_server(s: &Stream) -> Result<(), String> {
         String::from_utf16_lossy(&buf[..len as usize])
     };
     let expected = app_exe().ok_or("cannot locate Gale")?;
-    if !path.eq_ignore_ascii_case(&expected.to_string_lossy()) {
-        return Err("the Gale connection is owned by an unexpected program".into());
+    // Resolve both (short 8.3 names, \\?\ prefixes) so the same file always compares equal.
+    let canon = |p: &std::path::Path| std::fs::canonicalize(p).unwrap_or_else(|_| p.to_path_buf());
+    let (running, ours) = (canon(std::path::Path::new(&path)), canon(&expected));
+    if !running.as_os_str().eq_ignore_ascii_case(ours.as_os_str()) {
+        return Err(format!(
+            "the Gale connection is owned by another program ({}), not {}. Close it, or reinstall Gale.",
+            path,
+            expected.display()
+        ));
     }
     Ok(())
 }

@@ -20,6 +20,8 @@ pub struct AppSettings {
     pub notifications: bool,
     pub start_with_windows: bool,
     pub minimize_to_tray: bool,
+    pub show_progress_window: bool,
+    pub close_window_when_done: bool,
     // Downloads
     pub connections: u8,
     /// Applied at startup.
@@ -73,8 +75,10 @@ impl Default for AppSettings {
             download_dir: String::new(),
             category_folders: false,
             notifications: true,
-            start_with_windows: false,
+            start_with_windows: true,
             minimize_to_tray: true,
+            show_progress_window: true,
+            close_window_when_done: false,
             connections: 8,
             max_simultaneous: 3,
             max_retries: 6,

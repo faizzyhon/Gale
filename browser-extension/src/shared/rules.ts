@@ -30,7 +30,7 @@ export const DEFAULT_SETTINGS: Settings = {
   ],
   minSizeMB: 0,
   excludedDomains: [],
-  askFirst: false,
+  askFirst: true,
   sendCookies: true,
   pausedUntil: 0,
   bypassNext: false,

@@ -56,6 +56,8 @@ pub struct Download {
     pub error_message: Option<String>,
     pub category_id: Option<i64>,
     pub source: String,
+    /// `http` (direct engine) or a media kind: `hls`, `dash`, `video`, `audio`.
+    pub kind: String,
     pub created_at: String,
     pub started_at: Option<String>,
     pub completed_at: Option<String>,
@@ -72,6 +74,7 @@ pub struct NewDownload {
     pub category_id: Option<i64>,
     pub expected_sha256: Option<String>,
     pub source: Option<String>,
+    pub kind: Option<String>,
     pub status: Option<DownloadStatus>,
 }
 
@@ -153,8 +156,8 @@ impl Db {
     pub async fn insert_download(&self, d: &NewDownload) -> Result<i64> {
         let status = d.status.unwrap_or(DownloadStatus::Queued);
         let id = sqlx::query(
-            "INSERT INTO downloads (url, referrer, file_name, save_dir, connections, category_id, expected_sha256, source, status)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO downloads (url, referrer, file_name, save_dir, connections, category_id, expected_sha256, source, status, kind)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .bind(&d.url)
         .bind(&d.referrer)
@@ -165,6 +168,7 @@ impl Db {
         .bind(&d.expected_sha256)
         .bind(d.source.as_deref().unwrap_or("manual"))
         .bind(status)
+        .bind(d.kind.as_deref().unwrap_or("http"))
         .execute(&self.pool)
         .await?
         .last_insert_rowid();
@@ -332,6 +336,23 @@ impl Db {
         .await?;
         insert_history(&mut tx, id, "failed").await?;
         tx.commit().await?;
+        Ok(())
+    }
+
+    pub async fn set_metadata(&self, id: i64, key: &str, value: &str) -> Result<()> {
+        sqlx::query("INSERT INTO download_metadata (download_id, key, value) VALUES (?, ?, ?) ON CONFLICT(download_id, key) DO UPDATE SET value = excluded.value")
+            .bind(id).bind(key).bind(value).execute(&self.pool).await?;
+        Ok(())
+    }
+
+    pub async fn get_metadata(&self, id: i64, key: &str) -> Result<Option<String>> {
+        Ok(sqlx::query_scalar("SELECT value FROM download_metadata WHERE download_id = ? AND key = ?").bind(id).bind(key).fetch_optional(&self.pool).await?)
+    }
+
+    /// Progress for downloads without byte segments (media pipeline).
+    pub async fn set_downloaded(&self, id: i64, downloaded: u64, total: Option<u64>) -> Result<()> {
+        sqlx::query(&format!("UPDATE downloads SET downloaded_bytes = ?, total_bytes = COALESCE(?, total_bytes), updated_at = {NOW} WHERE id = ?"))
+            .bind(downloaded as i64).bind(total.map(|t| t as i64)).bind(id).execute(&self.pool).await?;
         Ok(())
     }
 

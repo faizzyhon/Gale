@@ -33,6 +33,8 @@ export interface Download {
   errorMessage: string | null;
   categoryId: number | null;
   source: string;
+  /** "http" = direct engine; otherwise the media pipeline. */
+  kind: "http" | "hls" | "dash" | "video" | "audio";
   createdAt: string;
   startedAt: string | null;
   completedAt: string | null;
@@ -52,12 +54,44 @@ export interface ProgressEvent {
   bytesPerSec: number;
   activeConnections: number;
   segments: SegmentState[];
+  stage?: MediaStage;
 }
+
+export type MediaStage = "extracting" | "downloading" | "merging" | "converting" | "processing" | "verifying";
 
 export interface Live {
   bytesPerSec: number;
   activeConnections: number;
   segments: SegmentState[];
+  stage?: MediaStage;
+}
+
+export type MediaChoice = { type: "video"; maxHeight: number | null } | { type: "audio"; mp3: boolean };
+
+export interface QualityOption {
+  label: string;
+  choice: MediaChoice;
+  kind: "hls" | "dash" | "video" | "audio";
+  estimatedSize: number | null;
+  detail: string;
+}
+
+export interface MediaInfo {
+  id: string;
+  title: string;
+  extractor: string;
+  webpageUrl: string;
+  duration: number | null;
+  isLive: boolean;
+  options: QualityOption[];
+  drmOnly: boolean;
+}
+
+export interface MediaToolsInfo {
+  available: boolean;
+  ytdlp: string | null;
+  ffmpeg: string | null;
+  error: string | null;
 }
 
 export interface Category {
@@ -110,6 +144,8 @@ export interface AppSettings {
   notifications: boolean;
   startWithWindows: boolean;
   minimizeToTray: boolean;
+  showProgressWindow: boolean;
+  closeWindowWhenDone: boolean;
   connections: 1 | 2 | 4 | 8 | 16 | 32;
   maxSimultaneous: number;
   maxRetries: number;
@@ -203,13 +239,6 @@ export interface ConnectionTest {
 export interface BrowserStatus {
   lastContact: string | null;
   intercepted: number;
-}
-
-export interface BrowserAddRequest {
-  pendingId: string;
-  url: string;
-  fileName: string | null;
-  referrer: string | null;
 }
 
 export interface BatchResult {

@@ -167,6 +167,9 @@ pub struct Tick {
     pub bytes_per_sec: f64,
     pub active_connections: u32,
     pub segments: Vec<SegmentState>,
+    /// Media pipeline stage (extracting, downloading, merging, converting, verifying); None for direct HTTP.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub stage: Option<&'static str>,
 }
 
 #[derive(Debug)]
@@ -401,6 +404,7 @@ pub async fn run(
                     bytes_per_sec: ema,
                     active_connections: shared.active.load(Ordering::Relaxed),
                     segments: shared.snapshot(),
+                    stage: None,
                 });
             }
         })
@@ -433,7 +437,7 @@ pub async fn run(
     workers_cancel.cancel();
     let _ = reporter.await;
     let segments = shared.snapshot();
-    on_tick(Tick { written: shared.written(), total: p.total, bytes_per_sec: 0.0, active_connections: 0, segments: segments.clone() });
+    on_tick(Tick { written: shared.written(), total: p.total, bytes_per_sec: 0.0, active_connections: 0, segments: segments.clone(), stage: None });
 
     if let Some(e) = first_err {
         return Err(e);

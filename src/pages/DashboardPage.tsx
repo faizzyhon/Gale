@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { categoryLabel } from "../app/views";
 import { api } from "../services/api";
 import { useDownloads } from "../stores/downloads";
 import type { DashboardStats } from "../types";
@@ -86,7 +87,7 @@ export function DashboardPage() {
               {stats.perCategory.map(([name, n]) => (
                 <li key={name}>
                   <div className="mb-1 flex justify-between text-[12px]">
-                    <span>{name}</span>
+                    <span>{categoryLabel(name)}</span>
                     <span className="tabular text-fg-2">{n}</span>
                   </div>
                   <div className="h-1 rounded-full bg-line">

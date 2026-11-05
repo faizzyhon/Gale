@@ -111,3 +111,29 @@ select {
   outline: 2px solid var(--fg);
   outline-offset: 1px;
 }
+
+/* Moving highlight on active progress bars and the indeterminate state. */
+@keyframes gale-sheen {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(250%); }
+}
+@keyframes gale-indeterminate {
+  from { transform: translateX(-120%); }
+  to { transform: translateX(320%); }
+}
+.gale-sheen::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  width: 40%;
+  background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.45), transparent);
+  animation: gale-sheen 1.6s ease-in-out infinite;
+}
+.gale-indeterminate {
+  animation: gale-indeterminate 1.3s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .gale-sheen::after, .gale-indeterminate { animation: none; }
+}
+button:active:not(:disabled) { transform: scale(0.97); }
+button { transition: transform 80ms ease, background-color 120ms ease, opacity 120ms ease; }

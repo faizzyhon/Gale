@@ -93,19 +93,6 @@ export function Dialog({
   );
 }
 
-export function ProgressBar({ value, status }: { value: number | null; status: string }) {
-  const color = status === "failed" ? "bg-bad" : status === "paused" ? "bg-warn" : status === "completed" ? "bg-ok" : "bg-accent";
-  return (
-    <div className="h-1 w-full overflow-hidden rounded-full bg-line">
-      {value == null ? (
-        status === "downloading" || status === "probing" ? <div className={`h-full w-1/3 animate-pulse ${color}`} /> : null
-      ) : (
-        <div className={`h-full ${color} transition-[width] duration-300`} style={{ width: `${Math.min(100, value * 100)}%` }} />
-      )}
-    </div>
-  );
-}
-
 export function Toasts() {
   const { toasts, dismiss } = useToasts();
   return (

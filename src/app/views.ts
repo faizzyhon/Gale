@@ -16,6 +16,7 @@ export type View =
   | { page: "dashboard" }
   | { page: "history" }
   | { page: "settings" }
+  | { page: "about" }
   | { page: "queues" }
   | { page: "grabber" };
 
@@ -39,6 +40,10 @@ export const CATEGORY_NAV: NavItem[] = [
   { id: "cat-soft", label: "Applications", filter: { kind: "category", category: "Software" } },
   { id: "cat-other", label: "Other Files", filter: { kind: "category", category: "Other" } },
 ];
+
+/** Display name for a built-in category ("Archives" → "Compressed Files"); custom categories keep their name. */
+export const categoryLabel = (name: string) =>
+  CATEGORY_NAV.find((n) => n.filter?.kind === "category" && n.filter.category === name)?.label ?? name;
 
 export function matches(d: Download, f: ListFilter, categories: Category[], query: string): boolean {
   if (query) {

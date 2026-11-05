@@ -63,9 +63,9 @@ pub async fn handle(app: AppHandle, env: Envelope) -> Response {
             if !p.silent {
                 // The user confirms in Gale's Add dialog; headers stay here, not in the webview.
                 let pending_id = uuid::Uuid::new_v4().to_string();
-                st.pending.lock().unwrap().insert(pending_id.clone(), PendingAdd::new(headers_for(&p)));
-                show_main(&app);
-                let _ = app.emit("browser://add", json!({ "pendingId": pending_id, "url": p.url, "fileName": p.filename, "referrer": p.referrer }));
+                let info = json!({ "url": p.url, "fileName": p.filename.as_deref().and_then(|f| f.rsplit(['/', '\\']).next()), "referrer": p.referrer, "fileSize": p.file_size, "mime": p.mime });
+                st.pending.lock().unwrap().insert(pending_id.clone(), PendingAdd::new(headers_for(&p), info));
+                crate::windows::open_capture(&app, &pending_id);
                 return Response::ok(&id, json!({ "pending": true }));
             }
             let queue_id = if p.enqueue { db.default_queue_id().await.ok() } else { None };
@@ -81,11 +81,45 @@ pub async fn handle(app: AppHandle, env: Envelope) -> Response {
                 ..Default::default()
             };
             match crate::commands::add_with_policy(&st, opts).await {
-                Ok(did) => Response::ok(&id, json!({ "id": did })),
+                Ok(did) => {
+                    crate::windows::want_progress_window(&app, did).await;
+                    Response::ok(&id, json!({ "id": did }))
+                }
                 Err(e) => {
                     let _ = db.add_browser_event("rejected", Some(&p.url), p.page_url.as_deref(), None).await;
                     Response::err(&id, &e.code, e.message)
                 }
+            }
+        }
+        Command::AddMedia(m) => {
+            let _ = db.add_browser_event("media", Some(&m.url), None, None).await;
+            show_main(&app);
+            let _ = app.emit("browser://media", json!({ "url": m.url, "title": m.title }));
+            Response::ok(&id, json!({ "review": true }))
+        }
+        Command::ProbeMedia(m) => match st.manager.extract_media(&m.url).await {
+            Ok(info) => Response::ok(&id, json!({ "title": info.title, "isLive": info.is_live, "drmOnly": info.drm_only, "options": info.options })),
+            Err(e) => {
+                let e = crate::commands::CommandError::from(e);
+                Response::err(&id, &e.code, e.message)
+            }
+        },
+        Command::DownloadMedia(m) => {
+            let _ = db.add_browser_event("media", Some(&m.url), None, None).await;
+            let opts = AddOptions {
+                url: m.url.clone(),
+                save_dir: settings.download_dir.clone(),
+                start: true,
+                source: Some("browser".into()),
+                media: Some(gale_core::manager::MediaRequest { choice: m.choice, kind: m.kind, title: m.title, expected_bytes: m.estimated_size }),
+                ..Default::default()
+            };
+            match crate::commands::add_with_policy(&st, opts).await {
+                Ok(did) => {
+                    crate::windows::want_progress_window(&app, did).await;
+                    Response::ok(&id, json!({ "id": did }))
+                }
+                Err(e) => Response::err(&id, &e.code, e.message),
             }
         }
         Command::AddBatch(b) => {

@@ -8,7 +8,7 @@ export function bytes(n: number | null | undefined): string {
     v /= 1024;
     i++;
   }
-  return `${i === 0 ? v : v.toFixed(v < 10 ? 2 : v < 100 ? 1 : 0)} ${UNITS[i]}`;
+  return `${i === 0 ? Math.round(v) : v.toFixed(v < 10 ? 2 : v < 100 ? 1 : 0)} ${UNITS[i]}`;
 }
 
 export function speed(bps: number | undefined): string {

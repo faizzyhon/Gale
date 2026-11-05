@@ -10,6 +10,7 @@ use tokio_util::sync::CancellationToken;
 
 use crate::db::{Db, Download, DownloadStatus, NewDownload};
 use crate::engine::{self, EngineConfig, Job, Outcome, RequestHeaders, Tick};
+use crate::media::{self, MediaChoice, MediaInfo, MediaJob, MediaNet, MediaOutcome, MediaTools};
 use crate::security::{sanitize_filename, temp_path_for, unique_path, validate_url};
 use crate::{categories, Error, Result};
 
@@ -36,9 +37,21 @@ pub struct AddOptions {
     pub source: Option<String>,
     /// Put into this queue instead of starting immediately.
     pub queue_id: Option<i64>,
+    /// Set for videos from sites/streams: handled by the media pipeline instead of the HTTP engine.
+    pub media: Option<MediaRequest>,
     /// Cookies / auth from the browser. Kept in memory for this session only.
     #[serde(skip)]
     pub headers: RequestHeaders,
+}
+
+#[derive(Debug, Clone, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MediaRequest {
+    pub choice: MediaChoice,
+    /// From the chosen QualityOption: `hls`, `dash`, `video` or `audio`.
+    pub kind: String,
+    pub title: Option<String>,
+    pub expected_bytes: Option<u64>,
 }
 
 pub struct Manager {
@@ -54,6 +67,7 @@ pub struct Manager {
     pump_now: tokio::sync::Notify,
     busy_queues: Mutex<HashSet<i64>>,
     shutdown_queues: Mutex<HashSet<i64>>,
+    media_tools: Mutex<Option<MediaTools>>,
 }
 
 impl Manager {
@@ -71,6 +85,7 @@ impl Manager {
             pump_now: tokio::sync::Notify::new(),
             busy_queues: Mutex::new(HashSet::new()),
             shutdown_queues: Mutex::new(HashSet::new()),
+            media_tools: Mutex::new(None),
         }))
     }
 
@@ -88,6 +103,37 @@ impl Manager {
         *self.client.lock().unwrap() = client;
         *self.cfg.lock().unwrap() = cfg;
         Ok(())
+    }
+
+    /// yt-dlp/FFmpeg/FFprobe for the media pipeline; None = video downloads unavailable.
+    pub fn set_media_tools(&self, tools: Option<MediaTools>) {
+        *self.media_tools.lock().unwrap() = tools;
+    }
+
+    pub fn media_tools(&self) -> Result<MediaTools> {
+        self.media_tools.lock().unwrap().clone().ok_or_else(|| Error::ToolMissing("yt-dlp/FFmpeg".into()))
+    }
+
+    /// Proxy, timeout and speed limit from the engine settings, in the form yt-dlp takes.
+    fn media_net(&self) -> MediaNet {
+        let cfg = self.cfg.lock().unwrap().clone();
+        let proxy = cfg.proxy.as_ref().and_then(|p| {
+            let mut u = url::Url::parse(&p.url).ok()?;
+            if let Some(user) = &p.username {
+                u.set_username(user).ok()?;
+                u.set_password(p.password.as_deref()).ok()?;
+            }
+            Some(u.to_string())
+        });
+        let global = cfg.limits.global.as_ref().map(|l| l.rate()).unwrap_or(0);
+        let rate = [global, cfg.download_limit_bps].into_iter().filter(|r| *r > 0).min().unwrap_or(0);
+        MediaNet { proxy, timeout_secs: cfg.read_timeout.as_secs(), rate_limit_bps: rate }
+    }
+
+    /// Metadata and quality options for a video page or stream URL.
+    pub async fn extract_media(&self, url: &str) -> Result<MediaInfo> {
+        let tools = self.media_tools()?;
+        media::extract(&tools, &validate_url(url)?, &self.media_net()).await
     }
 
     /// New default for downloads added from now on.
@@ -120,12 +166,28 @@ impl Manager {
                 format!("{} (the download folder must be a full path)", opts.save_dir)
             }));
         }
-        let name = opts
-            .file_name
-            .clone()
-            .or_else(|| crate::security::filename_from_url(&url))
-            .map(|n| sanitize_filename(&n))
-            .unwrap_or_else(|| "download".into());
+        if let Some(m) = &opts.media {
+            if !matches!(m.kind.as_str(), "hls" | "dash" | "video" | "audio") {
+                return Err(Error::InvalidState(format!("unknown media kind {}", m.kind)));
+            }
+        }
+        let name = match &opts.media {
+            // Provisional name for the list; yt-dlp decides the final one (title + id + container).
+            Some(m) => {
+                let ext = match m.choice {
+                    MediaChoice::Audio { mp3: true } => "mp3",
+                    MediaChoice::Audio { mp3: false } => "m4a",
+                    MediaChoice::Video { .. } => "mp4",
+                };
+                sanitize_filename(&format!("{}.{ext}", m.title.as_deref().unwrap_or("video")))
+            }
+            None => opts
+                .file_name
+                .clone()
+                .or_else(|| crate::security::filename_from_url(&url))
+                .map(|n| sanitize_filename(&n))
+                .unwrap_or_else(|| "download".into()),
+        };
         let cats = self.db.list_categories().await?;
         // Read before any await: a guard held across `.await` deadlocks the runtime.
         let connections = opts.connections.unwrap_or_else(|| self.cfg.lock().unwrap().connections) as i64;
@@ -141,8 +203,16 @@ impl Manager {
                 expected_sha256: opts.expected_sha256,
                 source: opts.source,
                 status: Some(if opts.start || opts.queue_id.is_some() { DownloadStatus::Queued } else { DownloadStatus::Paused }),
+                kind: opts.media.as_ref().map(|m| m.kind.clone()),
             })
             .await?;
+        if let Some(m) = &opts.media {
+            let choice = serde_json::to_string(&m.choice).map_err(|e| Error::InvalidState(e.to_string()))?;
+            self.db.set_metadata(id, "media_choice", &choice).await?;
+            if let Some(b) = m.expected_bytes {
+                self.db.set_metadata(id, "expected_bytes", &b.to_string()).await?;
+            }
+        }
         if let Some(q) = opts.queue_id {
             self.db.enqueue(q, id).await?;
         }
@@ -206,6 +276,9 @@ impl Manager {
             _ = token.cancelled() => return self.after_cancel(id).await,
         };
         let d = self.db.get_download(id).await?;
+        if d.kind != "http" {
+            return self.drive_media(id, d, token).await;
+        }
         self.db.set_status(id, DownloadStatus::Probing, None).await?;
         self.notify(id).await;
 
@@ -312,6 +385,63 @@ impl Manager {
                 Err(Error::RemoteChanged)
             }
             Err(e) => Err(e),
+        }
+    }
+
+    async fn drive_media(self: &Arc<Self>, id: i64, d: Download, token: CancellationToken) -> Result<()> {
+        let tools = self.media_tools()?;
+        let choice: MediaChoice = self
+            .db
+            .get_metadata(id, "media_choice")
+            .await?
+            .and_then(|c| serde_json::from_str(&c).ok())
+            .ok_or_else(|| Error::InvalidState("media download has no quality selection".into()))?;
+        let expected_bytes = self.db.get_metadata(id, "expected_bytes").await?.and_then(|b| b.parse().ok());
+        let save_dir = PathBuf::from(&d.save_dir);
+        // Fragments and .part files live here; kept on pause (yt-dlp resumes them), removed on cancel/success.
+        let work_dir = save_dir.join(format!(".gale-media-{id}"));
+        sqlx::query("UPDATE downloads SET temp_path = ? WHERE id = ?").bind(work_dir.to_string_lossy().as_ref()).bind(id).execute(self.db.pool()).await?;
+        self.db.set_status(id, DownloadStatus::Downloading, None).await?;
+        self.notify(id).await;
+
+        let (tx, mut rx) = watch::channel(None::<(u64, Option<u64>)>);
+        let persister = {
+            let db = self.db.clone();
+            tokio::spawn(async move {
+                while rx.changed().await.is_ok() {
+                    let v = *rx.borrow_and_update();
+                    if let Some((done, total)) = v {
+                        if let Err(e) = db.set_downloaded(id, done, total).await {
+                            tracing::error!(id, error = %e, "failed to persist media progress");
+                        }
+                    }
+                    tokio::time::sleep(Duration::from_secs(1)).await;
+                }
+            })
+        };
+        let sink = self.events.clone();
+        let on_progress = move |p: media::MediaProgress| {
+            sink.progress(id, &Tick { written: p.downloaded, total: p.total, bytes_per_sec: p.bytes_per_sec, active_connections: 0, segments: vec![], stage: Some(p.stage) });
+            let _ = tx.send(Some((p.downloaded, p.total)));
+        };
+        let job = MediaJob {
+            url: validate_url(&d.url)?,
+            choice,
+            save_dir,
+            work_dir,
+            concurrent_fragments: d.connections.clamp(1, 16) as u8,
+            expected_bytes,
+            net: self.media_net(),
+        };
+        let outcome = media::download(&tools, &job, &token, &on_progress).await;
+        drop(on_progress); // closes the watch channel so the persister exits
+        let _ = persister.await;
+        match outcome? {
+            MediaOutcome::Completed { path, bytes } => {
+                self.db.mark_completed(id, &path.to_string_lossy(), bytes, None).await?;
+                Ok(())
+            }
+            MediaOutcome::Paused => self.after_cancel(id).await,
         }
     }
 
@@ -530,6 +660,9 @@ impl Manager {
 }
 
 async fn remove_if_exists(p: &Path) -> Result<()> {
+    if p.is_dir() {
+        return Ok(tokio::fs::remove_dir_all(p).await?); // media work folder
+    }
     match tokio::fs::remove_file(p).await {
         Err(e) if e.kind() != std::io::ErrorKind::NotFound => Err(e.into()),
         _ => Ok(()),

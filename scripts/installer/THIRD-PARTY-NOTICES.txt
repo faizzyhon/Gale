@@ -1,0 +1,14 @@
+Gale bundles these programs, unmodified, in the "tools" folder. They run as separate
+programs; Gale does not link to them.
+
+yt-dlp (tools\yt-dlp.exe)
+  License: The Unlicense (public domain) - see yt-dlp-LICENSE.txt
+  Source:  https://github.com/yt-dlp/yt-dlp
+  Gale can update this file in place (Settings > Advanced > Update yt-dlp).
+
+FFmpeg and FFprobe (tools\ffmpeg.exe, tools\ffprobe.exe)
+  Build:   BtbN FFmpeg-Builds, win64 LGPL static build (no GPL components enabled)
+  License: GNU Lesser General Public License v3 - see FFmpeg-LICENSE.txt
+  Source:  https://ffmpeg.org/download.html  and  https://github.com/BtbN/FFmpeg-Builds
+  The exact source corresponding to these binaries is available from the build
+  project above; you may replace these files with any compatible FFmpeg build.

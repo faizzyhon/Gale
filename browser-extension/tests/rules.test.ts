@@ -8,7 +8,7 @@ const NOW = 1_000_000;
 const zip = { url: "https://cdn.example.com/files/big.zip", filename: "C:\\Users\\me\\Downloads\\big.zip", fileSize: 50 * 1024 * 1024 };
 
 test("intercepts selected types by default", () => {
-  assert.deepEqual(decide(zip, s(), app, NOW), { intercept: true, silent: true });
+  assert.deepEqual(decide(zip, s(), app, NOW), { intercept: true, silent: false });
   assert.equal(decide({ ...zip, filename: "page.html", url: "https://x.com/page.html" }, s(), app, NOW).intercept, false);
   assert.equal(decide({ ...zip, filename: "page.html", url: "https://x.com/page.html" }, s({ mode: "all" }), app, NOW).intercept, true);
 });
@@ -18,7 +18,7 @@ test("respects the user's switches and bypasses", () => {
   assert.equal(decide(zip, s({ pausedUntil: NOW + 1 }), app, NOW).intercept, false);
   assert.equal(decide(zip, s({ pausedUntil: NOW - 1 }), app, NOW).intercept, true);
   assert.equal(decide(zip, s({ bypassNext: true }), app, NOW).intercept, false);
-  assert.deepEqual(decide(zip, s({ askFirst: true }), app, NOW), { intercept: true, silent: false });
+  assert.deepEqual(decide(zip, s({ askFirst: false }), app, NOW), { intercept: true, silent: true });
 });
 
 test("app rules win", () => {
@@ -49,4 +49,14 @@ test("download link detection", () => {
   assert.ok(isDownloadLink("https://x.com/a/b.ISO?x=1", ["iso"]));
   assert.ok(!isDownloadLink("https://x.com/a/b.html", ["iso"]));
   assert.ok(!isDownloadLink("javascript:void(0)", ["iso"]));
+});
+
+test("store build blocks YouTube media only", async () => {
+  const { mediaBlocked } = await import("../src/shared/store");
+  assert.equal(mediaBlocked("https://www.youtube.com/watch?v=x", true), true);
+  assert.equal(mediaBlocked("https://m.youtube.com/watch?v=x", true), true);
+  assert.equal(mediaBlocked("https://rr1---sn.googlevideo.com/videoplayback", true), true);
+  assert.equal(mediaBlocked("https://notyoutube.com/v", true), false);
+  assert.equal(mediaBlocked("https://vimeo.com/1", true), false);
+  assert.equal(mediaBlocked("https://www.youtube.com/watch?v=x", false), false);
 });

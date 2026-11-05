@@ -1,5 +1,7 @@
+import { AnimatePresence, motion } from "framer-motion";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { DownloadTable } from "../components/DownloadTable";
+import { MediaDialog } from "../components/MediaDialog";
 import { AddUrlDialog, BatchDialog, PropertiesDialog, RemoveDialog, ShutdownDialog } from "../components/dialogs";
 import { Toasts } from "../components/ui";
 import { useDownloadActions } from "../hooks/useDownloadActions";
@@ -11,8 +13,9 @@ import { api } from "../services/api";
 import { toastError } from "../stores/toast";
 import { HistoryPage } from "../pages/HistoryPage";
 import { SettingsPage } from "../pages/SettingsPage";
+import { AboutPage } from "../pages/AboutPage";
 import { useDownloads } from "../stores/downloads";
-import type { BrowserAddRequest, Download } from "../types";
+import type { Download } from "../types";
 import { STATUS_NAV, matches, type View } from "./views";
 
 export function App() {
@@ -20,12 +23,13 @@ export function App() {
   const [view, setView] = useState<View>({ page: "list", nav: STATUS_NAV[0]! });
   const [query, setQuery] = useState("");
   const [adding, setAdding] = useState(false);
+  const [addUrl, setAddUrl] = useState<string | null>(null);
   const [batch, setBatch] = useState(false);
   const [props, setProps] = useState<Download | null>(null);
   const [removing, setRemoving] = useState<Download | null>(null);
-  const [browserAdd, setBrowserAdd] = useState<BrowserAddRequest | null>(null);
   const [browserBatch, setBrowserBatch] = useState<string[] | null>(null);
   const [shutdownIn, setShutdownIn] = useState<number | null>(null);
+  const [video, setVideo] = useState<{ url: string | null } | null>(null);
   const act = useDownloadActions();
 
   useEffect(() => {
@@ -42,14 +46,11 @@ export function App() {
   // Requests from the browser extension and the scheduler.
   useEffect(() => {
     const subs = [
-      api.onBrowserAdd((r) => {
-        setBrowserAdd(r);
-        setAdding(true);
-      }),
       api.onBrowserBatch((r) => {
         setBrowserBatch(r.urls);
         setBatch(true);
       }),
+      api.onBrowserMedia((r) => setVideo({ url: r.url })),
       api.onShutdownCountdown((s) => setShutdownIn(s)),
       api.onShutdownCancelled(() => setShutdownIn(null)),
     ];
@@ -65,6 +66,41 @@ export function App() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  // Paste (Ctrl+V outside a text field) or drop links from the browser: one link opens Add download, several open Add Batch.
+  useEffect(() => {
+    const links = (text: string) => text.split(/\s+/).filter((t) => /^https?:\/\/\S+$/i.test(t));
+    const take = (urls: string[]) => {
+      if (urls.length === 1) {
+        setAddUrl(urls[0]!);
+        setAdding(true);
+      } else if (urls.length > 1) {
+        setBrowserBatch(urls);
+        setBatch(true);
+      }
+      return urls.length > 0;
+    };
+    const onPaste = (e: ClipboardEvent) => {
+      if ((e.target as HTMLElement).closest?.("input, textarea, select, [contenteditable]")) return;
+      if (take(links(e.clipboardData?.getData("text") ?? ""))) e.preventDefault();
+    };
+    const onDragOver = (e: DragEvent) => {
+      if (e.dataTransfer?.types.some((t) => t === "text/uri-list" || t === "text/plain")) e.preventDefault();
+    };
+    const onDrop = (e: DragEvent) => {
+      const d = e.dataTransfer;
+      const uriList = (d?.getData("text/uri-list") ?? "").split("\n").filter((l) => !l.startsWith("#")).join(" ");
+      if (take(links(uriList || (d?.getData("text/plain") ?? "")))) e.preventDefault();
+    };
+    window.addEventListener("paste", onPaste);
+    window.addEventListener("dragover", onDragOver);
+    window.addEventListener("drop", onDrop);
+    return () => {
+      window.removeEventListener("paste", onPaste);
+      window.removeEventListener("dragover", onDragOver);
+      window.removeEventListener("drop", onDrop);
+    };
   }, []);
 
   const rows = useMemo(() => {
@@ -90,22 +126,39 @@ export function App() {
 
   return (
     <>
-      <Shell view={view} onNavigate={setView} query={query} onQuery={setQuery} onAdd={() => setAdding(true)} onBatch={() => setBatch(true)}>
-        {view.page === "list" && <DownloadTable rows={rows} onProperties={onProperties} onRemove={onRemove} />}
-        {view.page === "dashboard" && <DashboardPage />}
-        {view.page === "history" && <HistoryPage />}
-        {view.page === "settings" && <SettingsPage />}
-        {view.page === "queues" && <QueuesPage />}
-        {view.page === "grabber" && <GrabberPage />}
+      <Shell view={view} onNavigate={setView} query={query} onQuery={setQuery} onAdd={() => setAdding(true)} onBatch={() => setBatch(true)} onVideo={() => setVideo({ url: null })}>
+        <AnimatePresence mode="wait" initial={false}>
+          <motion.div
+            key={view.page === "list" ? `list-${view.nav.id}` : view.page}
+            className="h-full"
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -4 }}
+            transition={{ duration: 0.16, ease: "easeOut" }}
+          >
+            {view.page === "list" && <DownloadTable rows={rows} onProperties={onProperties} onRemove={onRemove} />}
+            {view.page === "dashboard" && <DashboardPage />}
+            {view.page === "history" && <HistoryPage />}
+            {view.page === "settings" && <SettingsPage />}
+            {view.page === "about" && <AboutPage />}
+            {view.page === "queues" && <QueuesPage />}
+            {view.page === "grabber" && <GrabberPage />}
+          </motion.div>
+        </AnimatePresence>
       </Shell>
       <AddUrlDialog
         open={adding}
-        initial={browserAdd}
+        initial={addUrl ? { url: addUrl } : null}
+        onVideo={(url) => {
+          setAdding(false);
+          setVideo({ url });
+        }}
         onClose={() => {
           setAdding(false);
-          setBrowserAdd(null);
+          setAddUrl(null);
         }}
       />
+      <MediaDialog open={video != null} initialUrl={video?.url} onClose={() => setVideo(null)} />
       <BatchDialog
         open={batch}
         initialUrls={browserBatch}

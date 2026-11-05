@@ -5,7 +5,10 @@ Run on a clean Windows 11 user account. Tick each line.
 ## Install
 - [ ] Double-click `Gale_0.1.0_x64.msi` → installs without an admin prompt (SmartScreen "More info → Run anyway" is expected until the build is signed).
 - [ ] Start menu → Gale folder has **Gale** and **Install browser extension**; desktop has **Gale**.
-- [ ] Files are in `%LOCALAPPDATA%\Programs\Gale`.
+- [ ] The installer shows the administrator (UAC) prompt; files are in `C:\Program Files\Gale`.
+- [ ] With an older per-user Gale installed (0.1–0.3 from `%LOCALAPPDATA%\Programs\Gale`): after installing, the old copy is gone from Settings → Apps, the download list is still there, and "start with Windows" still works after signing out and in.
+- [ ] Run the same installer again while Gale is open and downloading: Gale closes, one "Gale Download Manager" entry remains in Settings → Apps, and the download resumes after reopening Gale.
+- [ ] Settings → Update yt-dlp works (writes to `%LOCALAPPDATA%\com.faizzyhon.gale\tools`).
 - [ ] `reg query HKCU\Software\Google\Chrome\NativeMessagingHosts\com.gale.nmh` points at `…\Gale\com.gale.nmh.json` (same under `Microsoft\Edge`).
 
 ## App
@@ -27,6 +30,13 @@ Run on a clean Windows 11 user account. Tick each line.
 - [ ] Right-click a link → Download with Gale; select text with several links → Download selected links → Gale shows the review dialog.
 - [ ] Page with a `<video src=…mp4>` → hover → Download → file arrives in Gale.
 - [ ] Repeat the popup check in Edge.
+
+## Download windows (0.3.0)
+- [ ] Click a download link in Chrome with interception set to "ask first" → the "Download File Info" popup appears on top with the right name, category and size; Start download closes it and opens a progress window.
+- [ ] Progress window: % , speed and time left move smoothly; Show details grows the window and shows the speed graph and one bar per connection; Pause turns the bar amber; Resume continues.
+- [ ] On completion the window shrinks to the completion card; Open and Open folder work; with Settings → "Close the progress window when done" it closes by itself after ~2 s.
+- [ ] Windows "reduce animations" on → progress windows still work, without the motion.
+- [ ] Dragging the custom title bar moves the window; it is not resizable or maximizable.
 
 ## Uninstall
 - [ ] Settings → Apps → Gale → Uninstall → program folder, shortcuts and both registry keys are gone; the "start with Windows" entry is removed.

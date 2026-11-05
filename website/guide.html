@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>User guide · Gale Download Manager</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="Step-by-step guide to Gale: installing, downloading, browser extension, videos, queues, scheduler, settings and troubleshooting.">
+<meta name="author" content="Muhammad Faizan">
+<meta property="og:title" content="User guide · Gale Download Manager">
+<meta property="og:description" content="Step-by-step guide to Gale: installing, downloading, browser extension, videos, queues, scheduler, settings and troubleshooting.">
+<meta property="og:image" content="assets/img/downloads-list.webp">
+<link rel="icon" href="assets/favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Familjen+Grotesk:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="assets/site.css">
+<script src="assets/site.js"></script>
+</head>
+<body>
+<header class="topbar">
+  <div class="wrap">
+    <a class="brand" href="index.html"><img src="assets/favicon.png" alt="" width="30" height="30">Gale</a>
+    <nav class="nav" id="nav" aria-label="Main"><a href="index.html">Home</a><a href="download.html">Download</a><a href="guide.html" aria-current="page">Guide</a><a href="faq.html">FAQ</a><a href="changelog.html">What's new</a><a href="about.html">About</a></nav>
+    <div class="bar-actions">
+      <a class="btn btn-donate btn-small" href="support.html" data-donate><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 8h1a4 4 0 0 1 0 8h-1"/><path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z"/><path d="M6 2v2M10 2v2M14 2v2"/></svg><span>Donate</span></a>
+      <button class="icon-btn" id="theme" type="button" aria-label="Switch light or dark theme"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg></button>
+      <button class="icon-btn menu-toggle" id="menu" type="button" aria-label="Menu" aria-controls="nav" aria-expanded="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+    </div>
+  </div>
+</header>
+<main>
+
+<div class="wrap">
+  <div class="page-head">
+    <span class="eyebrow">User guide · Gale 0.4.0</span>
+    <h1>How to use Gale</h1>
+    <p class="lead">From installing to scheduling overnight downloads. Every picture on this page is a screenshot of Gale itself.</p>
+  </div>
+  <div class="doc">
+    <nav class="toc" aria-label="Guide contents"><b>On this page</b><a href="#install">Install Gale</a><a href="#first">Your first download</a><a href="#browser">Connect your browser</a><a href="#from-browser">Downloads from the browser</a><a href="#progress">The progress window</a><a href="#video">Download videos</a><a href="#manage">Manage downloads</a><a href="#queues">Queues and scheduler</a><a href="#grabber">Site grabber</a><a href="#settings">Settings</a><a href="#shortcuts">Keyboard shortcuts</a><a href="#trouble">Troubleshooting</a><a href="#uninstall">Update and uninstall</a></nav>
+    <article>
+
+<section id="install">
+  <h2>Install Gale</h2>
+  <ol class="steps">
+    <li><div><p>Download <code>Gale_Setup_0.4.0.exe</code> from the <a href="download.html">download page</a> and open it.</p></div></li>
+    <li><div><p>Windows asks whether to allow the app to make changes. Click <b>Yes</b>. If SmartScreen says "Windows protected your PC", click <b>More info</b>, then <b>Run anyway</b>; the installer isn't code-signed yet.</p></div></li>
+    <li><div><p>The setup installs Gale to <code>C:\Program Files\Gale</code>, adds it to the Start menu and desktop, and opens it. It takes under a minute.</p>
+      <figure class="narrow"><img class="" src="assets/img/installer.webp" alt="Gale setup window installing version 0.4.0" width="420" height="243" loading="lazy"><figcaption>The setup shows its progress and closes by itself when Gale is installed.</figcaption></figure></div></li>
+  </ol>
+  <p class="note">Already have Gale? Run the new setup. It closes Gale, updates it in place and keeps your downloads list and settings.</p>
+</section>
+
+<section id="first">
+  <h2>Your first download</h2>
+  <p>When you open Gale for the first time the list is empty. The buttons at the top add downloads; the sidebar filters them by status and category.</p>
+  <figure><img class="" src="assets/img/first-launch.webp" alt="Gale&#x27;s main window with an empty download list" width="1280" height="800" loading="lazy"><figcaption>Gale on first launch.</figcaption></figure>
+  <ol class="steps">
+    <li><div><p>Copy the address of a file, click <b>Add URL</b> (or press <kbd>Ctrl</kbd> + <kbd>N</kbd>) and paste it into <b>Address</b>. Quicker: press <kbd>Ctrl</kbd> + <kbd>V</kbd> anywhere in Gale's window, or drag a link from your browser onto Gale, and the dialog opens with the link filled in. Several links at once open <b>Add Batch</b>.</p></div></li>
+    <li><div><p>Check the folder under <b>Save to</b>. Leave <b>File name</b> empty to use the name the server gives. Eight connections is a good default.</p></div></li>
+    <li><div><p>If the site publishes a SHA-256 checksum, paste it in. Gale then marks the file complete only if it matches.</p></div></li>
+    <li><div><p>Click <b>Start download</b>, or <b>Add paused</b> to start it later.</p>
+      <figure><img class="" src="assets/img/add-download.webp" alt="Add download dialog with address, save folder, file name, connections, queue and SHA-256 fields" width="1280" height="800" loading="lazy"><figcaption>The Add download dialog.</figcaption></figure></div></li>
+  </ol>
+</section>
+
+<section id="browser">
+  <h2>Connect your browser</h2>
+  <p>The extension sends downloads, links and videos from Chrome or Edge to Gale. It comes with Gale; you only switch it on once.</p>
+  <ol class="steps">
+    <li><div><p>Open the Start menu, open the <b>Gale</b> folder and click <b>Install browser extension</b>. The page that opens shows the extension's folder and a <b>Copy</b> button. The folder is <code>C:\Program Files\Gale\browser-extension</code>.</p></div></li>
+    <li><div><p>In Chrome go to <code>chrome://extensions</code> (in Edge, <code>edge://extensions</code>) and turn on <b>Developer mode</b>.</p>
+      <figure><img class="" src="assets/img/chrome-developer-mode.webp" alt="Chrome extensions page with Developer mode switched on and the Load unpacked button" width="1280" height="110" loading="lazy"><figcaption>Developer mode is the switch at the top right. Load unpacked appears below the search box.</figcaption></figure></div></li>
+    <li><div><p>Click <b>Load unpacked</b> and choose the <code>browser-extension</code> folder. Gale Download Manager appears in the list.</p>
+      <figure class="narrow"><img class="" src="assets/img/chrome-extension-card.webp" alt="Gale Download Manager 0.4.0 card on the Chrome extensions page" width="470" height="240" loading="lazy"><figcaption>The extension after loading.</figcaption></figure></div></li>
+    <li><div><p>Click the puzzle-piece icon in the toolbar and pin <b>Gale</b>. Click the Gale icon: it should say <b>Connected</b> while Gale is running.</p>
+      <figure class="narrow"><img class="" src="assets/img/extension-popup.webp" alt="Gale extension popup showing Connected, version 0.4.0, and recent downloads" width="380" height="520" loading="lazy"><figcaption>The toolbar popup shows the connection, recent downloads, and quick switches.</figcaption></figure></div></li>
+  </ol>
+  <p class="note">Keep the folder where it is. The browser loads the extension from it, and Gale updates it when you install a new version.</p>
+</section>
+
+<section id="from-browser">
+  <h2>Downloads from the browser</h2>
+  <p>With the extension connected, click a download link as usual. Instead of Chrome's download bar you get Gale's <b>Download File Info</b> window.</p>
+  <figure class="narrow"><img class="" src="assets/img/download-file-info.webp" alt="Download File Info window with address, category, save-as name and folder" width="560" height="380" loading="lazy"><figcaption>Download File Info: Gale has already checked the size and whether the download can resume.</figcaption></figure>
+  <ul>
+    <li><b>Start download</b> begins at once and opens the progress window.</li>
+    <li><b>Download later</b> adds it to your main queue.</li>
+    <li><b>Cancel</b> drops it. Nothing is downloaded.</li>
+    <li>Changing <b>Category</b> moves the file to that category's folder when "Sort downloads into category folders" is on.</li>
+  </ul>
+  <p>Right-click for more: on a link, <b>Download with Gale</b>, <b>Add to Gale queue</b> or <b>Copy download URL</b>; on selected text, <b>Download selected links with Gale</b>; on the page, <b>Download all links on this page with Gale</b> or <b>Download video on this page with Gale</b>.</p>
+  <p>To choose which downloads Gale takes over, open the extension's options (right-click the Gale icon, then <b>Options</b>). You can limit it to certain file types or sizes, exclude sites, or turn off the Download File Info window so downloads start straight away.</p>
+  <figure class="narrow"><img class="" src="assets/img/extension-options.webp" alt="Gale browser settings page with interception, file types, privacy and media options" width="885" height="841" loading="lazy"><figcaption>The extension's options page.</figcaption></figure>
+</section>
+
+<section id="progress">
+  <h2>The progress window</h2>
+  <p>Each download gets its own small window. It shows the percentage, speed, time left and how many connections are working.</p>
+  <figure class="narrow"><img class="" src="assets/img/progress-window.webp" alt="Progress window at 53% with speed graph and eight connection bars" width="520" height="520" loading="lazy"><figcaption>Show details opens the speed graph for the last minute and one bar per connection.</figcaption></figure>
+  <ul>
+    <li><b>Pause</b> stops the download and keeps what's done. <b>Resume</b> continues from there, even days later.</li>
+    <li><b>Cancel</b> stops it and deletes the unfinished part. Finished files are never deleted.</li>
+    <li>You can close the window; the download keeps going in the main window.</li>
+  </ul>
+  <p>When the download finishes, the window shows where the file was saved.</p>
+  <figure class="narrow"><img class="" src="assets/img/download-complete.webp" alt="Download complete card with Open folder, Close and Open buttons" width="520" height="330" loading="lazy"><figcaption>Open runs the file, Open folder shows it in File Explorer.</figcaption></figure>
+  <p class="note">Don't want these windows? Turn off "Show a progress window when a download starts" in Settings → General. You can also have them close automatically when a download finishes.</p>
+</section>
+
+<section id="video">
+  <h2>Download videos</h2>
+  <p>There are two ways to save a video.</p>
+  <h3>From the web page</h3>
+  <ol class="steps">
+    <li><div><p>Hover over a video. A blue <b>Download ▾</b> button appears at its top right.</p></div></li>
+    <li><div><p>Click it. Gale reads the video and lists the qualities with their estimated size: 1080p, 720p, 360p, and audio only as MP3 or in its original format.</p></div></li>
+    <li><div><p>Click a quality. The download starts at once and its progress window opens; there's nothing to confirm in Gale.</p>
+      <figure><img class="" src="assets/img/video-button.webp" alt="Quality menu over a video on a web page listing 1080p, 720p, 360p and audio-only options" width="1280" height="800" loading="lazy"><figcaption>The quality menu on a web page. Gale needs to be running; it starts in the tray with Windows.</figcaption></figure></div></li>
+  </ol>
+  <p>Plain video files (an .mp4 link, for example) show a single <b>Download</b> row instead. If Gale can't read a page, the menu offers <b>Open in Gale</b> so you can try in the app.</p>
+  <h3>From Gale</h3>
+  <ol class="steps">
+    <li><div><p>Copy the address of the video page and click <b>Add Video</b>.</p></div></li>
+    <li><div><p>Paste it and click <b>Get formats</b>. Gale reads the page and lists the qualities.</p></div></li>
+    <li><div><p>Pick a quality, or audio only as MP3 or in its original format, check the folder and click <b>Download</b>.</p>
+      <figure><img class="" src="assets/img/video-quality.webp" alt="Download video dialog with 1080p, 720p, 360p and audio-only choices" width="1280" height="800" loading="lazy"><figcaption>Gale downloads the video and sound separately and joins them into one file without re-encoding.</figcaption></figure></div></li>
+  </ol>
+  <p>Video downloads show their stage in the list: reading video info, downloading, merging, then verifying.</p>
+  <p class="note warn">Only download videos you have the right to save. DRM-protected video (most paid streaming services) cannot be downloaded, and Gale doesn't try.</p>
+</section>
+
+<section id="manage">
+  <h2>Manage downloads</h2>
+  <p>The main list shows every download with its progress, size, speed, time left and status. Use the sidebar to see only what's in progress, finished, queued or failed, or one category such as Music or Compressed Files. The search box filters by name.</p>
+  <figure><img class="" src="assets/img/downloads-list.webp" alt="Main download list with downloading, queued and completed files" width="1280" height="800" loading="lazy"><figcaption>Three downloads running, three finished. Speeds and times update every second.</figcaption></figure>
+  <p>Select a download to use the toolbar above the list, or right-click it for everything you can do with it.</p>
+  <figure><img class="" src="assets/img/right-click-menu.webp" alt="Right-click menu with Open, Open containing folder, Pause, Restart, Cancel, Copy download URL, Recheck availability, Add to queue, Remove and Properties" width="1280" height="800" loading="lazy"><figcaption>The right-click menu.</figcaption></figure>
+  <ul>
+    <li><b>Recheck availability</b> asks the server whether the file still exists and can resume.</li>
+    <li><b>Remove</b> takes it off the list. Gale asks before deleting a downloaded file, and only deletes it if you tick that box.</li>
+    <li><b>Properties</b> shows the address, size, checksum and a map of which parts are done.</li>
+  </ul>
+  <p>The <b>Dashboard</b> sums up your downloads, and <b>Download History</b> keeps a record of what finished, failed or was cancelled, with how long each took.</p>
+  <figure><img class="" src="assets/img/dashboard.webp" alt="Dashboard with totals, a 14-day chart, downloads by category and recently downloaded files" width="1280" height="800" loading="lazy"><figcaption>The Dashboard.</figcaption></figure>
+  <figure><img class="" src="assets/img/history.webp" alt="Download history table with result, size, duration, finish time and address" width="1280" height="800" loading="lazy"><figcaption>Download History keeps finished, failed and cancelled downloads.</figcaption></figure>
+</section>
+
+<section id="queues">
+  <h2>Queues and scheduler</h2>
+  <p>A queue runs its downloads a few at a time instead of all at once. Gale starts with a <b>Main queue</b>; add more with <b>New queue</b>.</p>
+  <figure><img class="" src="assets/img/queues.webp" alt="Queues and Scheduler page with the main queue and an empty schedule list" width="1280" height="800" loading="lazy"><figcaption>Each queue shows how many downloads run at once and how many are done.</figcaption></figure>
+  <ol class="steps">
+    <li><div><p>Add downloads to a queue: choose the queue in the Add download dialog, use <b>Download later</b> in the browser, or right-click a download and pick <b>Add to</b> a queue.</p></div></li>
+    <li><div><p>Click <b>Edit</b> on a queue to set how many downloads run at the same time and how many connections they may use.</p></div></li>
+    <li><div><p>Click <b>Add schedule</b> to start or stop a queue at a set time: once, every day, on weekdays or weekly. You can also have Gale shut down the PC when the queue finishes; a 60-second countdown lets you cancel.</p></div></li>
+  </ol>
+  <p>Need the bandwidth back for a while? Right-click Gale's tray icon and choose <b>Speed limit</b>: Unlimited, 256 KB/s, 1 MB/s or 5 MB/s. It applies to running downloads at once. Other values can be set in Settings → Network.</p>
+  <p class="note">Schedules need Gale running. It starts with Windows in the tray by default, so they run even if you never open the window.</p>
+</section>
+
+<section id="grabber">
+  <h2>Site grabber</h2>
+  <p>The site grabber finds files linked from a web page, such as every PDF in a course page or every image in a gallery, and lets you choose which to download.</p>
+  <figure><img class="" src="assets/img/site-grabber.webp" alt="Site Grabber page with address field, file type checkboxes, link depth and page limit" width="1280" height="800" loading="lazy"><figcaption>Choose the file types, how many links deep to follow and whether to stay on the same site.</figcaption></figure>
+  <ol class="steps">
+    <li><div><p>Paste the page address and tick the file types you want. Add other extensions under <b>More extensions</b>.</p></div></li>
+    <li><div><p>Keep <b>Link depth</b> at 1 to look only at that page, or raise it to follow links. <b>URL must contain</b> and <b>must not contain</b> narrow the results.</p></div></li>
+    <li><div><p>Click <b>Find files</b>, tick the files to keep and click <b>Download</b>.</p></div></li>
+  </ol>
+  <p>The grabber respects each site's robots.txt, waits between pages, and never signs in or gets around access controls.</p>
+</section>
+
+<section id="settings">
+  <h2>Settings</h2>
+  <p>Open Settings from the bottom of the sidebar or the gear at the top right. Changes apply when you click <b>Save</b>.</p>
+  <figure><img class="" src="assets/img/settings.webp" alt="General settings: theme, default download folder, category folders, notifications, start with Windows, progress windows and tray" width="1280" height="800" loading="lazy"><figcaption>Settings → General.</figcaption></figure>
+  <div class="table-wrap"><table>
+    <tr><th>Tab</th><th>What's there</th></tr>
+    <tr><td>General</td><td>Light or dark theme, default download folder, category folders, notifications, start with Windows, progress windows, keep running in the tray</td></tr>
+    <tr><td>Downloads</td><td>Connections per download (1 to 32), how many downloads run at once, automatic retries</td></tr>
+    <tr><td>Browser</td><td>Whether the extension is connected, sites and file types the browser should keep</td></tr>
+    <tr><td>Network</td><td>Proxy (HTTP, HTTPS or SOCKS5), timeouts, total and per-download speed limits, connections per server, a connection test</td></tr>
+    <tr><td>Security</td><td>Blocked file types, scanning finished downloads with Microsoft Defender</td></tr>
+    <tr><td>Advanced</td><td>Video tools and <b>Update yt-dlp</b>, database backup and restore, logs, reset</td></tr>
+  </table></div>
+</section>
+
+<section id="shortcuts">
+  <h2>Keyboard shortcuts</h2>
+  <div class="table-wrap"><table>
+    <tr><th>Keys</th><th>Action</th></tr>
+    <tr><td><kbd>Ctrl</kbd> + <kbd>N</kbd></td><td>Add a download</td></tr>
+    <tr><td><kbd>Ctrl</kbd> + <kbd>V</kbd></td><td>Add the link you copied (several links open Add Batch)</td></tr>
+    <tr><td><kbd>Space</kbd></td><td>Pause or resume the selected download</td></tr>
+    <tr><td><kbd>Enter</kbd></td><td>Open the selected file when finished, otherwise show its properties</td></tr>
+    <tr><td><kbd>Delete</kbd></td><td>Remove the selected download (asks first)</td></tr>
+    <tr><td><kbd>Esc</kbd></td><td>Close a dialog</td></tr>
+  </table></div>
+</section>
+
+<section id="trouble">
+  <h2>Troubleshooting</h2>
+  <div class="faq">
+    <details><summary>The extension says "Gale is not installed"</summary><div><p>Install Gale with the setup, then restart the browser. The installer registers the connection the extension needs.</p></div></details>
+    <details><summary>The extension says Gale is not running</summary><div><p>Start Gale from the Start menu. After that it sits in the tray (next to the clock). To have it ready every time, keep "Start Gale when I sign in to Windows" on in Settings → General.</p></div></details>
+    <details><summary>"The Gale connection is owned by another program"</summary><div><p>Two copies of Gale are installed or running. Quit Gale from its tray icon (or end every <code>gale.exe</code> in Task Manager), run the latest setup, and start Gale again. The message names both programs so you can see which one is in the way.</p></div></details>
+    <details><summary>A video won't download</summary><div><p>Video sites change often. Open Settings → Advanced and click <b>Update yt-dlp</b>, then try again. DRM-protected video can't be downloaded.</p></div></details>
+    <details><summary>A download uses only one connection or starts over after a pause</summary><div><p>Some servers don't allow downloading a file in parts. Gale detects this and uses a single connection; a paused download from such a server has to restart. There's nothing to fix on your side.</p></div></details>
+    <details><summary>Downloads from the browser aren't going to Gale</summary><div><p>Click the Gale toolbar icon and check that <b>Send downloads to Gale</b> is on and that it isn't paused. In the extension's options, check the file types, minimum size and excluded sites. Gale also leaves alone the sites and types listed in Settings → Browser.</p></div></details>
+    <details><summary>Downloads are slower than expected</summary><div><p>Check for speed limits in Settings → Network. Raising connections per download (Settings → Downloads) helps on fast lines; some servers limit connections, which Gale respects.</p></div></details>
+    <details><summary>Where are my settings and download list?</summary><div><p>In <code>%APPDATA%\com.faizzyhon.gale</code>. Back them up from Settings → Advanced.</p></div></details>
+  </div>
+  <p>Still stuck? <a href="https://github.com/faizzyhon/Gale/issues">Report the problem on GitHub</a> with what you did and what Gale showed.</p>
+</section>
+
+<section id="uninstall">
+  <h2>Update and uninstall</h2>
+  <p><b>To update</b>, download the latest setup and run it. Gale closes, updates in place and keeps your list and settings.</p>
+  <p><b>To uninstall</b>, open Windows Settings → Apps → Installed apps, find <b>Gale Download Manager</b> and choose Uninstall. This removes the program, its Start menu entries, the browser connection and the start-with-Windows entry. Your downloaded files and your list in <code>%APPDATA%\com.faizzyhon.gale</code> are kept; delete that folder to remove everything. Remove the extension from <code>chrome://extensions</code> as well.</p>
+</section>
+
+    </article>
+  </div>
+</div>
+
+</main>
+<footer>
+  <div class="wrap">
+    <div class="foot">
+      <div>
+        <a class="brand" href="index.html"><img src="assets/favicon.png" alt="" width="30" height="30">Gale</a>
+        <p class="small">A free, open-source download manager for Windows 10 and 11. Version 0.4.0.</p>
+      </div>
+      <div><h4>Product</h4><ul><li><a href="download.html">Download</a></li><li><a href="guide.html">User guide</a></li><li><a href="faq.html">FAQ</a></li><li><a href="changelog.html">What's new</a></li></ul></div>
+      <div><h4>Project</h4><ul><li><a href="https://github.com/faizzyhon/Gale">Source code</a></li><li><a href="https://github.com/faizzyhon/Gale/releases">Releases</a></li><li><a href="https://github.com/faizzyhon/Gale/issues">Report a problem</a></li><li><a href="support.html">Support Gale</a></li></ul></div>
+      <div><h4>Legal</h4><ul><li><a href="privacy.html">Privacy policy</a></li><li><a href="terms.html">Terms of use</a></li><li><a href="disclaimer.html">Disclaimer</a></li><li><a href="https://github.com/faizzyhon/Gale/blob/main/LICENSE">MIT License</a></li></ul></div>
+      <div><h4>Developer</h4><ul><li><a href="about.html">About</a></li><li><a href="https://faizzyhon.com">faizzyhon.com</a></li><li><a href="https://github.com/faizzyhon">GitHub</a></li><li><a href="https://www.linkedin.com/in/faizzyhon/">LinkedIn</a></li></ul></div>
+    </div>
+    <div class="legal"><span>© 2026 Muhammad Faizan. Released under the MIT License.</span><span>Gale is independent software and is not affiliated with Google, Microsoft or any website it works with.</span></div>
+  </div>
+</footer>
+</body>
+</html>

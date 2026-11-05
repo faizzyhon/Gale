@@ -22,12 +22,27 @@ export type WorkerMessage =
   | { type: "recent" }
   | { type: "show-app" }
   | { type: "media-list" }
-  | { type: "download-media"; url: string; filename?: string };
+  | { type: "download-media"; url: string; filename?: string }
+  | { type: "download-page-video" }
+  | { type: "media-formats" }
+  | { type: "download-media-format"; title?: string; choice: MediaChoice; kind: string; estimatedSize?: number | null };
+
+/** Gale's quality choice for a video page (mirrors gale-core MediaChoice). */
+export type MediaChoice = { type: "video"; maxHeight: number | null } | { type: "audio"; mp3: boolean };
+
+/** One entry of the quality menu, as returned by Gale's probe_media. */
+export interface QualityOption {
+  label: string;
+  choice: MediaChoice;
+  kind: string;
+  estimatedSize: number | null;
+  detail: string;
+}
 
 export interface MediaItem {
   url: string;
   mime: string;
   size: number | null;
-  /** "direct" = downloadable file; "stream" = HLS/DASH playlist, not supported. */
+  /** "direct" = plain media file (direct engine); "stream" = HLS/DASH playlist (Gale's video pipeline). */
   kind: "direct" | "stream";
 }

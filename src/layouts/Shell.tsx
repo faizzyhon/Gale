@@ -21,10 +21,12 @@ import {
   PauseCircle,
   Plus,
   Search,
+  Info,
   Settings,
   XCircle,
   type LucideIcon,
 } from "lucide-react";
+import { motion } from "framer-motion";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { api } from "../services/api";
 import { toastError } from "../stores/toast";
@@ -57,10 +59,11 @@ interface Props {
   onQuery: (q: string) => void;
   onAdd: () => void;
   onBatch: () => void;
+  onVideo: () => void;
   children: ReactNode;
 }
 
-export function Shell({ view, onNavigate, query, onQuery, onAdd, onBatch, children }: Props) {
+export function Shell({ view, onNavigate, query, onQuery, onAdd, onBatch, onVideo, children }: Props) {
   const { downloads, categories, queues, refreshQueues } = useDownloads();
   const main = queues.find((q) => q.isDefault);
   const queueAction = (action: "start" | "stop") => main && api.queueAction(main.id, action).then(refreshQueues, toastError);
@@ -80,7 +83,7 @@ export function Shell({ view, onNavigate, query, onQuery, onAdd, onBatch, childr
         active ? "bg-hover font-medium" : "hover:bg-hover"
       }`}
     >
-      {active && <span className="absolute top-2 bottom-2 left-0 w-[3px] rounded-full bg-accent" />}
+      {active && <motion.span layoutId="nav-indicator" className="absolute top-2 bottom-2 left-0 w-[3px] rounded-full bg-accent" transition={{ type: "spring", stiffness: 500, damping: 38 }} />}
       <Icon size={16} className={active ? "text-accent" : "text-fg-2"} strokeWidth={1.75} />
       <span className="flex-1 truncate">{label}</span>
       {count ? <span className="tabular text-[11px] text-fg-3">{count}</span> : null}
@@ -109,6 +112,7 @@ export function Shell({ view, onNavigate, query, onQuery, onAdd, onBatch, childr
           {navButton("grabber", "Site Grabber", Globe, view.page === "grabber", () => onNavigate({ page: "grabber" }))}
           {navButton("history", "Download History", History, view.page === "history", () => onNavigate({ page: "history" }))}
         </nav>
+        {navButton("about", "About Gale", Info, view.page === "about", () => onNavigate({ page: "about" }))}
         {navButton("settings", "Settings", Settings, view.page === "settings", () => onNavigate({ page: "settings" }))}
       </aside>
 
@@ -116,12 +120,13 @@ export function Shell({ view, onNavigate, query, onQuery, onAdd, onBatch, childr
         <header className="flex h-12 shrink-0 items-center gap-1 border-b border-line px-3">
           <ToolbarButton icon={Plus} label="Add URL" onClick={onAdd} primary />
           <ToolbarButton icon={ListPlus} label="Add Batch" onClick={onBatch} />
+          <ToolbarButton icon={Film} label="Add Video" onClick={onVideo} />
           <div className="mx-1 h-5 w-px bg-line" />
           <ToolbarButton icon={Play} label="Start Queue" onClick={() => queueAction("start")} disabled={!main || main.state === "running"} />
           <ToolbarButton icon={Square} label="Stop Queue" onClick={() => queueAction("stop")} disabled={!main || main.state === "stopped"} />
           <ToolbarButton icon={CalendarClock} label="Scheduler" onClick={() => onNavigate({ page: "queues" })} />
           <div className="flex-1" />
-          <div className="relative w-72">
+          <div className="relative w-60 shrink">
             <Search size={14} className="pointer-events-none absolute top-1/2 left-2.5 -translate-y-1/2 text-fg-3" />
             <input
               value={query}
@@ -167,7 +172,7 @@ function ToolbarButton({
       className="flex h-8 items-center gap-2 rounded-[var(--radius-ctl)] px-2.5 text-[13px] hover:bg-hover disabled:opacity-35 disabled:hover:bg-transparent"
     >
       <Icon size={16} strokeWidth={1.75} className={primary ? "text-accent" : "text-fg-2"} />
-      {!iconOnly && <span>{label}</span>}
+      {!iconOnly && <span className="whitespace-nowrap">{label}</span>}
     </button>
   );
 }

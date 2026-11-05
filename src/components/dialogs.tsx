@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { api, errorMessage } from "../services/api";
 import { useDownloads } from "../stores/downloads";
 import { toastInfo } from "../stores/toast";
-import type { BatchResult, BrowserAddRequest, Download, SegmentState } from "../types";
+import type { BatchResult, Download, SegmentState } from "../types";
 import { bytes, date } from "../utils/format";
 import { Button, Dialog, Field, inputCls } from "./ui";
 
@@ -26,7 +26,11 @@ function FolderInput({ value, onChange }: { value: string; onChange: (v: string)
   );
 }
 
-export function AddUrlDialog({ open, onClose, initial }: { open: boolean; onClose: () => void; initial?: BrowserAddRequest | null }) {
+/** Page URLs on video sites need the media pipeline, not a plain file download. */
+const VIDEO_PAGE = /^https?:\/\/([^/]+\.)?(youtube\.com|youtu\.be|vimeo\.com|dailymotion\.com|twitch\.tv|facebook\.com|instagram\.com|tiktok\.com|x\.com|twitter\.com)\//i;
+const STREAM_URL = /\.(m3u8|mpd)(\?|$)/i;
+
+export function AddUrlDialog({ open, onClose, initial, onVideo }: { open: boolean; onClose: () => void; initial?: { url: string; fileName?: string | null; referrer?: string | null } | null; onVideo?: (url: string) => void }) {
   const settings = useDownloads((s) => s.settings);
   const queues = useDownloads((s) => s.queues);
   const [queueId, setQueueId] = useState<number | "">("");
@@ -64,7 +68,7 @@ export function AddUrlDialog({ open, onClose, initial }: { open: boolean; onClos
         referrer: initial?.referrer ?? undefined,
         queueId: queueId === "" ? undefined : queueId,
         start: start && queueId === "",
-      }, initial?.pendingId);
+      });
       onClose();
     } catch (e) {
       setError(errorMessage(e));
@@ -76,7 +80,7 @@ export function AddUrlDialog({ open, onClose, initial }: { open: boolean; onClos
   return (
     <Dialog
       open={open}
-      title={initial ? "Download from browser" : "Add download"}
+      title="Add download"
       onClose={onClose}
       footer={
         <>
@@ -129,6 +133,14 @@ export function AddUrlDialog({ open, onClose, initial }: { open: boolean; onClos
         <Field label="SHA-256 (optional)" hint={shaValid ? "The file is only marked complete if it matches" : "Must be 64 hexadecimal characters"}>
           <input className={`${inputCls} font-mono text-[12px]`} value={sha} onChange={(e) => setSha(e.target.value)} spellCheck={false} />
         </Field>
+        {onVideo && (VIDEO_PAGE.test(url.trim()) || STREAM_URL.test(url.trim())) && (
+          <p className="rounded-[var(--radius-ctl)] border border-line bg-surface p-3 text-[12px]">
+            This looks like a video page or stream.{" "}
+            <button type="button" className="font-medium text-accent underline" onClick={() => onVideo(url.trim())}>
+              Choose a quality and download it as video
+            </button>
+          </p>
+        )}
         {error && (
           <p role="alert" className="text-[12px] text-bad">
             {error}
@@ -178,7 +190,7 @@ export function BatchDialog({ open, onClose, initialUrls }: { open: boolean; onC
   return (
     <Dialog
       open={open}
-      title={initialUrls ? `Review ${initialUrls.length} links from the browser` : "Add batch"}
+      title={initialUrls ? `Add ${initialUrls.length} links` : "Add batch"}
       width={620}
       onClose={onClose}
       footer={

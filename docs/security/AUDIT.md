@@ -30,8 +30,9 @@ or receive the user's cookies. It runs as the signed-in user, never elevated.
 | Downloaded malware | Mark-of-the-Web (`Zone.Identifier`, ZoneId=3) so SmartScreen/Protected View apply; optional Defender scan; user-configurable blocked extensions | manual on Windows |
 | Deleting user files | Only on explicit confirmation (`remove(id, delete_file=true)` from the dialog); cancel removes only Gale's own `.gale-part` | `cancel_removes_partial_but_remove_keeps_completed_file` |
 | Website grabber abuse | robots.txt honoured, same-site default, ≥200 ms between pages, ≤500 pages, depth ≤5, never signs in | `grabber_crawls_politely` |
-| DRM / protected media | Media button refuses elements with `mediaKeys`; HLS/DASH playlists are listed as unsupported, never fetched | code review (`content/media.ts`) |
-| Privilege | Per-user MSI, no elevation; shutdown/Defender run fixed executables with fixed arguments | code review (`system.rs`) |
+| DRM / protected media | yt-dlp never gets `--allow-unplayable-formats`, so DRM formats are dropped; Gale also filters `has_drm` and reports DRM-only videos | `drm_only_and_single_file_pages`, `options_from_youtube_like_json` |
+| Media tool invocation | `--no-config`, URL after `--`, http(s) only, fixed argument list, proxy via environment; output only moved out of the work folder after FFprobe verification; cancel kills the process tree | `tests/media.rs` |
+| Privilege | MSI needs admin only to install into Program Files; the app always runs unelevated. Installer custom actions run fixed commands only (`taskkill` for gale.exe, `gale.exe --migrate` / `--uninstall-cleanup`); shutdown/Defender run fixed executables with fixed arguments | code review (`system.rs`, `startup.rs`, `gale.wxs`) |
 | Logs leaking data | JSON logs record ids, codes and error text only; header values never logged | code review |
 
 ## Dependency scans

@@ -26,6 +26,12 @@ pub enum Command {
     Ping,
     AddDownload(AddPayload),
     AddBatch(BatchPayload),
+    /// A page or stream with a video the user wants (HLS/DASH, YouTube, …): opens Gale's video dialog.
+    AddMedia(MediaPayload),
+    /// List the qualities for a video page or stream, for the menu on the page (runs yt-dlp: seconds, not ms).
+    ProbeMedia(MediaPayload),
+    /// Download a video page or stream in the quality picked from that menu, without opening Gale's dialog.
+    DownloadMedia(MediaDownloadPayload),
     GetRules,
     Recent { limit: u32 },
     ShowApp,
@@ -74,6 +80,27 @@ pub struct BatchPayload {
     pub referrer: Option<String>,
     #[serde(default)]
     pub page_url: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct MediaPayload {
+    pub url: String,
+    #[serde(default)]
+    pub title: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct MediaDownloadPayload {
+    pub url: String,
+    #[serde(default)]
+    pub title: Option<String>,
+    /// From the option Gale returned for this page in `probe_media`.
+    pub choice: crate::media::MediaChoice,
+    pub kind: String,
+    #[serde(default)]
+    pub estimated_size: Option<u64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -162,6 +189,22 @@ impl Request {
                     check_len("filename", &i.filename, 1024)?;
                 }
             }
+            Command::AddMedia(m) | Command::ProbeMedia(m) => {
+                check_url(&m.url)?;
+                check_len("title", &m.title, 1024)?;
+            }
+            Command::DownloadMedia(m) => {
+                check_url(&m.url)?;
+                check_len("title", &m.title, 1024)?;
+                if !["hls", "dash", "video", "audio"].contains(&m.kind.as_str()) {
+                    return Err(Error::InvalidState("unknown media kind".into()));
+                }
+                if let crate::media::MediaChoice::Video { max_height: Some(h) } = m.choice {
+                    if h == 0 || h > 8640 {
+                        return Err(Error::InvalidState("bad video height".into()));
+                    }
+                }
+            }
             Command::Recent { limit } if *limit > 100 => return Err(Error::InvalidState("limit must be ≤ 100".into())),
             _ => {}
         }
@@ -209,6 +252,19 @@ mod tests {
     fn parses_known_commands() {
         let r = Request::parse(br#"{"v":1,"id":"a","cmd":"ping"}"#).unwrap();
         assert_eq!(r.command, Command::Ping);
+        let r = Request::parse(br#"{"v":1,"id":"m","cmd":"add_media","payload":{"url":"https://www.youtube.com/watch?v=x","title":"T"}}"#).unwrap();
+        assert!(matches!(r.command, Command::AddMedia(_)));
+        assert!(Request::parse(br#"{"v":1,"id":"m","cmd":"add_media","payload":{"url":"javascript:1"}}"#).is_err());
+        let r = Request::parse(br#"{"v":1,"id":"p","cmd":"probe_media","payload":{"url":"https://v.example/watch?v=1"}}"#).unwrap();
+        assert!(matches!(r.command, Command::ProbeMedia(_)));
+        let ok = br#"{"v":1,"id":"d","cmd":"download_media","payload":{"url":"https://v.example/w","choice":{"type":"video","maxHeight":720},"kind":"hls"}}"#;
+        assert!(matches!(Request::parse(ok).unwrap().command, Command::DownloadMedia(_)));
+        let audio = br#"{"v":1,"id":"d","cmd":"download_media","payload":{"url":"https://v.example/w","choice":{"type":"audio","mp3":true},"kind":"audio"}}"#;
+        assert!(Request::parse(audio).is_ok());
+        let bad_kind = br#"{"v":1,"id":"d","cmd":"download_media","payload":{"url":"https://v.example/w","choice":{"type":"audio","mp3":true},"kind":"exe"}}"#;
+        assert!(Request::parse(bad_kind).is_err());
+        let bad_height = br#"{"v":1,"id":"d","cmd":"download_media","payload":{"url":"https://v.example/w","choice":{"type":"video","maxHeight":99999},"kind":"video"}}"#;
+        assert!(Request::parse(bad_height).is_err());
         let r = Request::parse(br#"{"v":1,"id":"b","cmd":"add_download","payload":{"url":"https://x.com/f.zip","silent":true}}"#).unwrap();
         assert!(matches!(r.command, Command::AddDownload(AddPayload { silent: true, .. })));
     }

@@ -40,7 +40,7 @@ export const useDownloads = create<DownloadsState>((set, get) => ({
     const unProgress = await api.onProgress((e) => {
       const d = get().downloads[e.id];
       set((s) => ({
-        live: { ...s.live, [e.id]: { bytesPerSec: e.bytesPerSec, activeConnections: e.activeConnections, segments: e.segments } },
+        live: { ...s.live, [e.id]: { bytesPerSec: e.bytesPerSec, activeConnections: e.activeConnections, segments: e.segments, stage: e.stage } },
         downloads: d
           ? { ...s.downloads, [e.id]: { ...d, downloadedBytes: e.written, totalBytes: e.total ?? d.totalBytes } }
           : s.downloads,

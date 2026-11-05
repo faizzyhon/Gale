@@ -9,6 +9,7 @@ pub mod grabber;
 pub mod ipc;
 pub mod limits;
 pub mod manager;
+pub mod media;
 pub mod protocol;
 pub mod queue;
 pub mod security;
@@ -43,6 +44,10 @@ pub enum Error {
     NotFound(i64),
     #[error("{0}")]
     InvalidState(String),
+    #[error("{0}")]
+    Media(String),
+    #[error("{0} was not found; reinstall Gale or install it and add it to PATH")]
+    ToolMissing(String),
 }
 
 impl Error {
@@ -62,6 +67,8 @@ impl Error {
             Error::Db(_) | Error::Migrate(_) => "database",
             Error::NotFound(_) => "not_found",
             Error::InvalidState(_) => "invalid_state",
+            Error::Media(_) => "media",
+            Error::ToolMissing(_) => "tool_missing",
         }
     }
 
