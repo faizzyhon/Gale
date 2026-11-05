@@ -1,3 +1,5 @@
+<img width="1400" height="560" alt="promo-marquee-1400x560" src="https://github.com/user-attachments/assets/af751811-0a50-43af-9a78-1971d77d2cca" />
+
 # Gale Download Manager
 
 Free, open-source download manager for Windows 10 and 11, with a Chrome/Edge extension.
