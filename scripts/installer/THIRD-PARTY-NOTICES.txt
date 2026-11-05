@@ -12,3 +12,10 @@ FFmpeg and FFprobe (tools\ffmpeg.exe, tools\ffprobe.exe)
   Source:  https://ffmpeg.org/download.html  and  https://github.com/BtbN/FFmpeg-Builds
   The exact source corresponding to these binaries is available from the build
   project above; you may replace these files with any compatible FFmpeg build.
+
+Compiled into gale.exe
+
+librqbit (BitTorrent engine)
+  License: Apache License 2.0 - https://www.apache.org/licenses/LICENSE-2.0
+  Source:  https://github.com/ikatson/rqbit
+  Copyright Igor Katson and contributors. Used unmodified as a library.

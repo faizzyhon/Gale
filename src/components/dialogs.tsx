@@ -101,7 +101,19 @@ export function AddUrlDialog({ open, onClose, initial, onVideo }: { open: boolea
         }}
       >
         <Field label="Address">
-          <input autoFocus className={inputCls} value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://" spellCheck={false} />
+          <div className="flex gap-2">
+            <input autoFocus className={inputCls} value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://… or magnet:?…" spellCheck={false} />
+            <Button
+              type="button"
+              className="whitespace-nowrap"
+              onClick={async () => {
+                const f = await api.pickTorrent();
+                if (f) setUrl(f);
+              }}
+            >
+              .torrent file…
+            </Button>
+          </div>
         </Field>
         <Field label="Save to">
           <FolderInput value={dir} onChange={setDir} />

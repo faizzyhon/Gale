@@ -5,7 +5,7 @@ GitHub release link as the download, so updating them means editing the version 
 
 | Site | Where to submit (submission pages move; use the site's footer link if a link has changed) | Notes |
 |---|---|---|
-| GitHub Releases | https://github.com/faizzyhon/Gale/releases/new | Tag `v0.4.0`; attach `Gale_Setup_0.4.0.exe`, `Gale_0.4.0_x64.msi`, their `.sha256` files, and `Gale-Chrome-Extension-0.4.0.zip`; paste "What's new". Every other site links here. |
+| GitHub Releases | https://github.com/faizzyhon/Gale/releases/new | Tag `v0.5.0`; attach `Gale_Setup_0.5.0.exe`, `Gale_0.5.0_x64.msi`, their `.sha256` files, and `Gale-Chrome-Extension-0.5.0.zip`; paste "What's new". Every other site links here. |
 | winget | see [microsoft-store.md](microsoft-store.md#winget-windows-package-manager) | Lets people run `winget install MuhammadFaizan.Gale`. |
 | Softpedia | https://www.softpedia.com — "Submit program" link in the footer | Free. Mark as "Freeware / Open Source". |
 | Uptodown | https://www.uptodown.com — "Developers" / "Upload your app" in the footer | Free developer account; upload or link the MSI. |
@@ -20,12 +20,12 @@ GitHub release link as the download, so updating them means editing the version 
 | Field | Value |
 |---|---|
 | Program name | Gale Download Manager |
-| Version | 0.4.0 |
+| Version | 0.5.0 |
 | License | Freeware / Open Source (MIT) |
 | Price | Free |
 | OS | Windows 10, Windows 11 (64-bit) |
-| File | `Gale_Setup_0.4.0.exe` (~160 MB, includes yt-dlp and FFmpeg; installs WebView2 if missing) |
-| Download URL | https://github.com/faizzyhon/Gale/releases/download/v0.4.0/Gale_Setup_0.4.0.exe |
+| File | `Gale_Setup_0.5.0.exe` (~160 MB, includes yt-dlp and FFmpeg; installs WebView2 if missing) |
+| Download URL | https://github.com/faizzyhon/Gale/releases/download/v0.5.0/Gale_Setup_0.5.0.exe |
 | Homepage | https://github.com/faizzyhon/Gale |
 | Publisher | Muhammad Faizan |
 | Publisher website | https://faizzyhon.com |

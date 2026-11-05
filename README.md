@@ -8,7 +8,7 @@ Tauri 2 + React 19 UI. Architecture: [`docs/architecture/ARCHITECTURE.md`](docs/
 
 ## Install (Windows 11)
 
-1. Run `Gale_Setup_0.4.0.exe` (or `Gale_0.4.0_x64.msi`) and approve the administrator prompt. The setup also installs
+1. Run `Gale_Setup_0.5.0.exe` (or `Gale_0.5.0_x64.msi`) and approve the administrator prompt. The setup also installs
    Microsoft Edge WebView2 Runtime if the PC lacks it. Gale installs to `C:\Program Files\Gale` for all users.
    Running a newer (or the same) installer updates Gale in place; an older per-user Gale is removed automatically and your download list is kept.
    The build isn't code-signed yet, so SmartScreen may say "Windows protected your PC": choose **More info → Run anyway**.
@@ -24,12 +24,13 @@ Uninstall from Settings → Apps. Your download list/history (`%APPDATA%\com.fai
 
 | Area | What's in |
 |---|---|
-| Engine | 1–32 connections, verified range support with single-connection fallback, work-stealing segments, If-Range/ETag protection, retry with back-off, pause/resume across restarts and crashes, SHA-256 verification, total/per-download speed limits, per-server connection cap, HTTP/HTTPS/SOCKS5 proxy with Credential Manager password |
+| Engine | 1–32 connections, verified range support with single-connection fallback, work-stealing segments, If-Range/ETag protection, retry with back-off, pause/resume across restarts and crashes, automatic resume on start and retry after network errors, SHA-256 verification, total/per-download speed limits, per-server connection cap, HTTP/HTTPS/SOCKS5 proxy with Credential Manager password |
 | App | Download table with all row actions, properties with segment map, categories, search, dashboard, history, batch add, queues (limits, priority, start/pause/stop), scheduler (once/daily/weekdays/weekly, shutdown after with 60 s cancel), site grabber (robots.txt, depth, filters), notifications, settings (General, Downloads, Browser, Network, Security, Advanced), DB backup/restore |
 | Windows (UI) | Browser-captured downloads open a small "Download File Info" popup (category, file name, folder, size/resume check; Start, Download later, Cancel). Each started download gets its own progress window: live %, speed, time left, connections, a details panel with a speed graph and per-connection bars, pause/resume/cancel, and a completion card with Open / Open folder. Both can be turned off in Settings → General |
 | Windows | Tray + close-to-tray, toasts, start with Windows, single instance, Mark-of-the-Web, optional Defender scan, all-users MSI with in-place updates, Chrome + Edge native messaging registration, clean uninstall |
 | Video | YouTube and other video sites, HLS and DASH streams: pick 1080p/720p/360p or audio-only (MP3 or original); separate audio/video merged without re-encoding; verified with FFprobe. Uses bundled yt-dlp + FFmpeg. See `docs/media/VIDEO-DOWNLOADS.md` |
-| Browser | Download interception by type/size/site with bypass & pause, "ask first" mode, context menus (link, queue, media, selected links, all links, copy URL), floating Download button on `<video>`/`<audio>` (DRM-protected media refused), popup with status/recent/diagnostics, options page |
+| Torrent | Magnet links and .torrent files (link or local file) through librqbit: DHT, trackers, multi-file torrents in their own folder, pause/resume with piece recheck, speed limit, no seeding after completion |
+| Browser | Download interception by type/size/site with bypass & pause, "ask first" mode, context menus (link, queue, media, selected links, all links, copy URL), floating Download button on `<video>`/`<audio>` with a quality menu that is fetched as soon as a video page opens (DRM-protected media refused), magnet and .torrent capture, popup with status/recent/diagnostics, options page |
 
 Not included: DRM-protected video, live streams, playlists, FTP, auto-update, languages other than English. See `docs/security/AUDIT.md` → Known limits.
 
@@ -49,7 +50,7 @@ Testing details: `docs/testing/TESTING.md`; Windows sign-off list: `docs/testing
 ## Layout
 
 ```
-crates/gale-core/     engine, media pipeline (yt-dlp/FFmpeg), limits, queues/scheduler, grabber, DB, protocol, IPC, security
+crates/gale-core/     engine, media pipeline (yt-dlp/FFmpeg), torrents (librqbit), limits, queues/scheduler, grabber, DB, protocol, IPC, security
 crates/gale-nmh/      native messaging host (gale-nmh.exe)
 src-tauri/            Tauri app: commands, browser bridge, tray, notifications, Windows integration
 src/                  React UI (services/api.ts is the only IPC boundary)

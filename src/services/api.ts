@@ -106,6 +106,11 @@ export const api = {
     const r = await open({ multiple: false, filters: [{ name: "Gale backup", extensions: ["db", "sqlite"] }] });
     return typeof r === "string" ? r : null;
   },
+  /** A local .torrent file, returned as a file: URL (the form the backend accepts). */
+  pickTorrent: async () => {
+    const r = await open({ multiple: false, filters: [{ name: "Torrent", extensions: ["torrent"] }] });
+    return typeof r === "string" ? "file:///" + encodeURI(r.replace(/\\/g, "/").replace(/^\//, "")).replace(/#/g, "%23").replace(/\?/g, "%3F") : null;
+  },
   pickSave: (defaultPath: string) => save({ defaultPath, filters: [{ name: "Gale backup", extensions: ["db"] }] }),
 
   onProgress: (cb: (e: ProgressEvent) => void) => on("download://progress", cb),

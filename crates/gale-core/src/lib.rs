@@ -13,6 +13,7 @@ pub mod media;
 pub mod protocol;
 pub mod queue;
 pub mod security;
+pub mod torrent;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -48,6 +49,8 @@ pub enum Error {
     Media(String),
     #[error("{0} was not found; reinstall Gale or install it and add it to PATH")]
     ToolMissing(String),
+    #[error("{0}")]
+    Torrent(String),
 }
 
 impl Error {
@@ -69,6 +72,7 @@ impl Error {
             Error::InvalidState(_) => "invalid_state",
             Error::Media(_) => "media",
             Error::ToolMissing(_) => "tool_missing",
+            Error::Torrent(_) => "torrent",
         }
     }
 

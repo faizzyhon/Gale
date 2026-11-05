@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Gale Download Manager",
   "short_name": "Gale",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Send downloads, links and videos from Chrome to Gale, the free download manager for Windows.",
   "author": "Muhammad Faizan",
   "homepage_url": "https://github.com/faizzyhon/Gale",

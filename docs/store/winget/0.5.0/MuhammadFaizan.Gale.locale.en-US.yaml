@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=https://aka.ms/winget-manifest.defaultLocale.1.6.0.schema.json
 PackageIdentifier: MuhammadFaizan.Gale
-PackageVersion: 0.4.0
+PackageVersion: 0.5.0
 PackageLocale: en-US
 Publisher: Muhammad Faizan
 PublisherUrl: https://faizzyhon.com
@@ -15,16 +15,18 @@ Copyright: Copyright (c) 2026 Muhammad Faizan
 ShortDescription: Free, open-source download manager for Windows with multi-connection downloads, resume and browser integration.
 Description: |-
   Gale speeds up downloads by splitting each file into up to 32 connections, resumes interrupted downloads,
-  catches downloads from Chrome and Edge, saves videos in the quality you choose, and organises files into
+  catches downloads from Chrome and Edge, saves videos in the quality you choose, downloads torrents and magnet
+  links, and organises files into
   categories, queues and schedules. No ads, no account, no tracking.
 Moniker: gale
 Tags:
   - download-manager
   - downloader
   - download-accelerator
+  - torrent
   - resume
   - video-downloader
   - open-source
-ReleaseNotesUrl: https://github.com/faizzyhon/Gale/releases/tag/v0.4.0
+ReleaseNotesUrl: https://github.com/faizzyhon/Gale/releases/tag/v0.5.0
 ManifestType: defaultLocale
 ManifestVersion: 1.6.0

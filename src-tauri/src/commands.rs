@@ -44,8 +44,15 @@ type Res<T> = Result<T, CommandError>;
 /// Applies Security → blocked file types and General → category folders, then adds.
 pub async fn add_with_policy(st: &AppState, mut opts: AddOptions) -> Res<i64> {
     let s = st.settings();
-    let url = gale_core::security::validate_url(&opts.url)?;
-    let name = opts.file_name.clone().or_else(|| gale_core::security::filename_from_url(&url)).unwrap_or_default();
+    use gale_core::torrent;
+    let name = if torrent::is_magnet(&opts.url) {
+        torrent::magnet_name(&torrent::validate_magnet(&opts.url)?).unwrap_or_default()
+    } else if let Some(p) = torrent::local_torrent(&opts.url) {
+        p.file_name().unwrap_or_default().to_string_lossy().into_owned()
+    } else {
+        let url = gale_core::security::validate_url(&opts.url)?;
+        opts.file_name.clone().or_else(|| gale_core::security::filename_from_url(&url)).unwrap_or_default()
+    };
     let ext = name.rsplit_once('.').map(|(_, e)| e.to_ascii_lowercase()).unwrap_or_default();
     if !ext.is_empty() && s.blocked_extensions.contains(&ext) {
         return Err(err("blocked", format!(".{ext} files are blocked in Settings → Security")));
@@ -98,6 +105,13 @@ pub async fn probe_pending(state: State<'_, AppState>, pending_id: String) -> Re
         let p = p.get(&pending_id).ok_or_else(|| err("expired", "this download request has expired"))?;
         (p.info["url"].as_str().unwrap_or_default().to_string(), p.headers.clone())
     };
+    if gale_core::torrent::is_magnet(&url) {
+        // Nothing to ask a server; the size is known once peers send the torrent's metadata.
+        let m = gale_core::torrent::validate_magnet(&url)?;
+        let name = gale_core::torrent::magnet_name(&m).unwrap_or_else(|| "torrent".into());
+        let final_url = url::Url::parse(&m).map_err(|_| err("invalid_url", "invalid magnet link"))?;
+        return Ok(ProbeResult { final_url, total: None, ranges: true, etag: None, last_modified: None, file_name: name, mime: None });
+    }
     let u = gale_core::security::validate_url(&url)?;
     let client = engine::build_client(&state.manager.config())?;
     let name = state.pending.lock().unwrap().get(&pending_id).and_then(|p| p.info["fileName"].as_str().map(str::to_owned));
@@ -280,6 +294,10 @@ pub async fn save_settings(app: AppHandle, state: State<'_, AppState>, settings:
     let s = settings.validated().map_err(|m| err("invalid_settings", m))?;
     let old = state.settings();
     state.manager.reconfigure(s.engine_config(&state.global, &state.hosts))?;
+    state.manager.set_auto_retry(s.auto_resume);
+    if s.global_limit_kbps != old.global_limit_kbps {
+        crate::sync_tray_limit(&app, s.global_limit_kbps);
+    }
     if s.start_with_windows != old.start_with_windows {
         let al = app.autolaunch();
         let r = if s.start_with_windows { al.enable() } else { al.disable() };

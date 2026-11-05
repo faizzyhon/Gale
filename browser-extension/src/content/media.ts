@@ -1,6 +1,7 @@
 // Floating "Download" button on video/audio elements. Protected (EME/DRM) media is never offered.
 import type { MediaItem, QualityOption } from "../shared/settings";
 import { loadSettings } from "../shared/settings";
+import { videoPageKind } from "../shared/rules";
 import { mediaBlocked } from "../shared/store";
 
 const host = document.createElement("gale-media-ui");
@@ -79,12 +80,53 @@ document.addEventListener(
     const el = ((e.target as Element | null)?.closest?.("video, audio") ??
       document.elementsFromPoint(e.clientX, e.clientY).find((x) => x instanceof HTMLMediaElement)) as HTMLMediaElement | null;
     if (!el || !place(el)) return;
+    // Players fed through MediaSource (blob:) or HLS/DASH need yt-dlp: start on hover, not on click.
+    if (!/^https?:/.test(el.currentSrc) || /\.(m3u8|mpd)(\?|$)/i.test(el.currentSrc)) prefetch();
     current = el;
     clearTimeout(hideTimer);
     btn.style.display = "flex";
     hideTimer = window.setTimeout(() => (btn.style.display = "none"), 4000);
   },
   { passive: true },
+);
+
+// ---------------------------------------------------------------------------------------------
+// Preparing the quality menu before it is opened. The background keeps the answer per page address.
+
+let prefetched = "";
+function prefetch() {
+  const url = location.href;
+  if (url === prefetched || !host.isConnected || mediaBlocked(url) || videoPageKind(url) === "site") return;
+  prefetched = url;
+  void send({ type: "media-formats" }, null);
+}
+let lastHref = "";
+function onAddress() {
+  if (location.href === lastHref) return;
+  lastHref = location.href;
+  // Give the page a moment: the address of a single-page app changes before its player is ready.
+  if (videoPageKind(lastHref) === "video") setTimeout(() => location.href === lastHref && prefetch(), 1200);
+}
+onAddress();
+document.addEventListener("yt-navigate-finish", onAddress); // YouTube changes pages without reloading
+setInterval(onAddress, 1000); // other single-page apps (history.pushState is not observable from here)
+
+// ---------------------------------------------------------------------------------------------
+// Magnet links: sent to Gale; when Gale is closed or torrents are off, the link opens as it normally would.
+
+document.addEventListener(
+  "click",
+  (e) => {
+    if (e.defaultPrevented || e.button !== 0 || e.ctrlKey || e.shiftKey || e.altKey || e.metaKey) return;
+    const a = (e.target as Element | null)?.closest?.("a[href]") as HTMLAnchorElement | null;
+    if (!a || !/^magnet:\?/i.test(a.href) || !chrome.runtime?.id) return;
+    e.preventDefault();
+    const href = a.href;
+    void send<Reply>({ type: "add-magnet", url: href }, { ok: false }).then((r) => {
+      if (!r.ok) location.href = href;
+    });
+  },
+  true,
 );
 
 const fmt = (n: number | null) => (n == null ? "size unknown" : n > 1 << 30 ? `${(n / 2 ** 30).toFixed(2)} GB` : `${(n / 2 ** 20).toFixed(1)} MB`);

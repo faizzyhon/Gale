@@ -121,6 +121,9 @@ export function SettingsPage() {
                 <Check checked={draft.closeWindowWhenDone} onChange={(v) => set("closeWindowWhenDone", v)} hint="Otherwise it stays open with Open / Open folder buttons">
                   Close the progress window automatically when the download finishes
                 </Check>
+                <Check checked={draft.autoResume} onChange={(v) => set("autoResume", v)} hint="Also retries a few times when a download fails because the connection dropped">
+                  Resume unfinished downloads automatically when Gale starts
+                </Check>
                 <Check checked={draft.minimizeToTray} onChange={(v) => set("minimizeToTray", v)} hint="Downloads keep running; quit from the tray icon">
                   Closing the window keeps Gale running in the tray
                 </Check>

@@ -38,6 +38,11 @@ anything to the developer or to any other server.
   for that download only; they are never written to disk or logs. You can turn this off in the extension options.
 - **Media on pages:** to show the Download button on videos, the extension notes the addresses of video and audio
   streams a page loads. This list stays in the extension's memory for that tab and is cleared when the tab closes.
+- **Video qualities:** so the quality menu opens without waiting, the extension passes the address of a video page
+  to Gale when the page opens on a video site (such as YouTube or Vimeo), or when you point at a streamed video on
+  another site. Gale then reads the available qualities from that site, the same site your browser is already
+  showing. The answer is kept in the extension's session memory for 15 minutes and cleared when the browser closes.
+- **Magnet links:** when you click a magnet link, its address and the page address are passed to Gale.
 - **Links you choose:** "Download all links" and "Download selected links" read the links on the current page only
   when you pick that menu item.
 - **Settings:** the extension's own settings are saved with Chrome's storage. If you use Chrome Sync, Chrome syncs them
@@ -47,7 +52,11 @@ anything to the developer or to any other server.
 
 Gale connects only to:
 
-- the servers you download files from (including video sites, when you download a video)
+- the servers you download files from (including video sites, when you download a video or the extension asks for
+  a video's qualities)
+- for torrents: the torrent's trackers, other BitTorrent peers and the BitTorrent DHT network. Peers see your IP
+  address and which torrent you are downloading, and receive pieces of it from Gale while it downloads; this is how
+  BitTorrent works. Gale stops sharing when the download finishes or is paused
 - your proxy server, if you set one
 - GitHub, only when you click "Update yt-dlp" in Settings, to fetch the latest yt-dlp release
 

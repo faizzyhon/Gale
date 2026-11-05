@@ -33,18 +33,18 @@
 
 <div class="wrap">
   <div class="page-head">
-    <span class="eyebrow">User guide · Gale 0.4.0</span>
+    <span class="eyebrow">User guide · Gale 0.5.0</span>
     <h1>How to use Gale</h1>
     <p class="lead">From installing to scheduling overnight downloads. Every picture on this page is a screenshot of Gale itself.</p>
   </div>
   <div class="doc">
-    <nav class="toc" aria-label="Guide contents"><b>On this page</b><a href="#install">Install Gale</a><a href="#first">Your first download</a><a href="#browser">Connect your browser</a><a href="#from-browser">Downloads from the browser</a><a href="#progress">The progress window</a><a href="#video">Download videos</a><a href="#manage">Manage downloads</a><a href="#queues">Queues and scheduler</a><a href="#grabber">Site grabber</a><a href="#settings">Settings</a><a href="#shortcuts">Keyboard shortcuts</a><a href="#trouble">Troubleshooting</a><a href="#uninstall">Update and uninstall</a></nav>
+    <nav class="toc" aria-label="Guide contents"><b>On this page</b><a href="#install">Install Gale</a><a href="#first">Your first download</a><a href="#browser">Connect your browser</a><a href="#from-browser">Downloads from the browser</a><a href="#progress">The progress window</a><a href="#video">Download videos</a><a href="#torrent">Download torrents</a><a href="#manage">Manage downloads</a><a href="#queues">Queues and scheduler</a><a href="#grabber">Site grabber</a><a href="#settings">Settings</a><a href="#shortcuts">Keyboard shortcuts</a><a href="#trouble">Troubleshooting</a><a href="#uninstall">Update and uninstall</a></nav>
     <article>
 
 <section id="install">
   <h2>Install Gale</h2>
   <ol class="steps">
-    <li><div><p>Download <code>Gale_Setup_0.4.0.exe</code> from the <a href="download.html">download page</a> and open it.</p></div></li>
+    <li><div><p>Download <code>Gale_Setup_0.5.0.exe</code> from the <a href="download.html">download page</a> and open it.</p></div></li>
     <li><div><p>Windows asks whether to allow the app to make changes. Click <b>Yes</b>. If SmartScreen says "Windows protected your PC", click <b>More info</b>, then <b>Run anyway</b>; the installer isn't code-signed yet.</p></div></li>
     <li><div><p>The setup installs Gale to <code>C:\Program Files\Gale</code>, adds it to the Start menu and desktop, and opens it. It takes under a minute.</p>
       <figure class="narrow"><img class="" src="assets/img/installer.webp" alt="Gale setup window installing version 0.4.0" width="420" height="243" loading="lazy"><figcaption>The setup shows its progress and closes by itself when Gale is installed.</figcaption></figure></div></li>
@@ -129,6 +129,19 @@
   </ol>
   <p>Video downloads show their stage in the list: reading video info, downloading, merging, then verifying.</p>
   <p class="note warn">Only download videos you have the right to save. DRM-protected video (most paid streaming services) cannot be downloaded, and Gale doesn't try.</p>
+</section>
+
+<section id="torrent">
+  <h2>Download torrents</h2>
+  <p>Gale downloads magnet links and .torrent files with BitTorrent, next to your other downloads.</p>
+  <ol class="steps">
+    <li><div><p>In the browser, click a magnet link or a .torrent link. The extension sends it to Gale, which asks where to save it. When Gale isn't running, the link opens the way it normally would.</p></div></li>
+    <li><div><p>In Gale, click <b>Add URL</b> and paste a magnet link, or click <b>.torrent file…</b> to pick a file on your PC.</p></div></li>
+    <li><div><p>Gale first gets the torrent's details from other peers (for magnet links), then downloads. The list shows how many peers are connected. A torrent with several files gets its own folder.</p></div></li>
+  </ol>
+  <p>Pause and resume work like any other download, also after a restart: Gale checks the pieces already on disk and fetches only what's missing. Gale shares pieces with other peers while it downloads, which is how BitTorrent works, and stops sharing when the download finishes or is paused. The speed limit applies to torrents too.</p>
+  <p>Turn off <b>Open magnet links and .torrent files in Gale</b> in the extension's options to keep using another torrent app from the browser.</p>
+  <p class="note warn">Only download torrents you have the right to. Sharing copyrighted files without permission is illegal in most countries, and peers can see your IP address.</p>
 </section>
 
 <section id="manage">
@@ -231,7 +244,7 @@
     <div class="foot">
       <div>
         <a class="brand" href="index.html"><img src="assets/favicon.png" alt="" width="30" height="30">Gale</a>
-        <p class="small">A free, open-source download manager for Windows 10 and 11. Version 0.4.0.</p>
+        <p class="small">A free, open-source download manager for Windows 10 and 11. Version 0.5.0.</p>
       </div>
       <div><h4>Product</h4><ul><li><a href="download.html">Download</a></li><li><a href="guide.html">User guide</a></li><li><a href="faq.html">FAQ</a></li><li><a href="changelog.html">What's new</a></li></ul></div>
       <div><h4>Project</h4><ul><li><a href="https://github.com/faizzyhon/Gale">Source code</a></li><li><a href="https://github.com/faizzyhon/Gale/releases">Releases</a></li><li><a href="https://github.com/faizzyhon/Gale/issues">Report a problem</a></li><li><a href="support.html">Support Gale</a></li></ul></div>

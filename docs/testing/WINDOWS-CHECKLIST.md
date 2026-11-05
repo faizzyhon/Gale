@@ -38,6 +38,15 @@ Run on a clean Windows 11 user account. Tick each line.
 - [ ] Windows "reduce animations" on → progress windows still work, without the motion.
 - [ ] Dragging the custom title bar moves the window; it is not resizable or maximizable.
 
+## Torrents and resume (0.5.0)
+- [ ] Click a magnet link in Chrome → "Download File Info" → Start → the row shows "Getting torrent info", then peers and speed; Windows Firewall may ask once to allow Gale (BitTorrent listens for peers).
+- [ ] Add URL → ".torrent file…" → pick a multi-file torrent → files land in their own folder.
+- [ ] Pause a torrent, quit Gale, start it again → the torrent checks its files and continues.
+- [ ] Start a big HTTP download, end Gale in Task Manager, start Gale → it continues by itself.
+- [ ] Turn Wi-Fi off during a download until it fails, turn it on → it starts again within a minute.
+- [ ] YouTube watch page: wait 5 s, hover the video, click Download → qualities show without the "Finding qualities…" wait.
+- [ ] Settings → Network speed limit 1 MB/s → the tray Speed limit menu ticks "1 MB/s".
+
 ## Uninstall
 - [ ] Settings → Apps → Gale → Uninstall → program folder, shortcuts and both registry keys are gone; the "start with Windows" entry is removed.
 - [ ] Downloaded files and `%APPDATA%\com.faizzyhon.gale` (your list/history) are kept.

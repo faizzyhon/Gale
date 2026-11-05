@@ -70,7 +70,7 @@ export function App() {
 
   // Paste (Ctrl+V outside a text field) or drop links from the browser: one link opens Add download, several open Add Batch.
   useEffect(() => {
-    const links = (text: string) => text.split(/\s+/).filter((t) => /^https?:\/\/\S+$/i.test(t));
+    const links = (text: string) => text.split(/\s+/).filter((t) => /^(https?:\/\/|magnet:\?)\S+$/i.test(t));
     const take = (urls: string[]) => {
       if (urls.length === 1) {
         setAddUrl(urls[0]!);

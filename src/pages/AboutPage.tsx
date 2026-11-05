@@ -81,7 +81,7 @@ export function AboutPage() {
             <Link name="license">MIT License</Link>
             <Link name="notices">Third-party notices</Link>
           </div>
-          <p className="mt-4 text-[12px] text-fg-3">© 2026 Muhammad Faizan. Gale includes yt-dlp (Unlicense) and FFmpeg (LGPL).</p>
+          <p className="mt-4 text-[12px] text-fg-3">© 2026 Muhammad Faizan. Gale includes yt-dlp (Unlicense), FFmpeg (LGPL) and librqbit (Apache 2.0).</p>
         </Card>
       </div>
     </div>

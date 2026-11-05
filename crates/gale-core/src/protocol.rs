@@ -137,7 +137,15 @@ pub struct Envelope {
     pub request: Request,
 }
 
+/// Web address or magnet link (downloads). Never `file:`: a web page must not be able to make Gale read local files.
 fn check_url(u: &str) -> Result<()> {
+    if crate::torrent::is_magnet(u) {
+        return crate::torrent::validate_magnet(u).map(|_| ());
+    }
+    check_web_url(u)
+}
+
+fn check_web_url(u: &str) -> Result<()> {
     if u.len() > 8192 {
         return Err(Error::InvalidUrl("URL too long".into()));
     }
@@ -190,11 +198,11 @@ impl Request {
                 }
             }
             Command::AddMedia(m) | Command::ProbeMedia(m) => {
-                check_url(&m.url)?;
+                check_web_url(&m.url)?;
                 check_len("title", &m.title, 1024)?;
             }
             Command::DownloadMedia(m) => {
-                check_url(&m.url)?;
+                check_web_url(&m.url)?;
                 check_len("title", &m.title, 1024)?;
                 if !["hls", "dash", "video", "audio"].contains(&m.kind.as_str()) {
                     return Err(Error::InvalidState("unknown media kind".into()));

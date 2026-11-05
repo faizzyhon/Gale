@@ -1,6 +1,6 @@
 // Service worker: download interception, context menus, media detection, popup/content routing.
 import { mediaBlocked } from "../shared/store";
-import { decide, isDownloadLink, type AppRules } from "../shared/rules";
+import { decide, decideMagnet, isDownloadLink, type AppRules } from "../shared/rules";
 import { type NativeResponse, native } from "../shared/native";
 import { cachedAppRules, loadSettings, saveSettings, type MediaItem, type WorkerMessage } from "../shared/settings";
 
@@ -17,16 +17,27 @@ const MENU = {
 // ---------------------------------------------------------------------------------------------
 // Setup
 
-// Qualities per page, so reopening the menu doesn't run yt-dlp again (and two clicks share one lookup).
+// Qualities per page. The content script asks as soon as a video page opens (or a video is hovered), so the
+// menu is usually ready by the time it is clicked; the click then gets the same promise. Answers are also kept
+// in storage.session, because Chrome stops this worker after about 30 idle seconds and memory goes with it.
+const FORMAT_TTL = 15 * 60_000;
 const formatCache = new Map<string, { at: number; reply: Promise<NativeResponse> }>();
 function probeFormats(url: string, title?: string) {
   const now = Date.now();
-  for (const [k, v] of formatCache) if (now - v.at > 120_000) formatCache.delete(k);
+  for (const [k, v] of formatCache) if (now - v.at > FORMAT_TTL) formatCache.delete(k);
+  while (formatCache.size > 30) formatCache.delete(formatCache.keys().next().value!);
   const hit = formatCache.get(url);
   if (hit) return hit.reply;
-  const reply = native("probe_media", { url, title: title || undefined });
+  const key = `fmt:${url}`;
+  const reply = (async () => {
+    const saved = (await chrome.storage.session.get(key))[key] as { at: number; reply: NativeResponse } | undefined;
+    if (saved && now - saved.at < FORMAT_TTL) return saved.reply;
+    const r = await native("probe_media", { url, title: title || undefined });
+    if (r.ok) void chrome.storage.session.set({ [key]: { at: Date.now(), reply: r } }).catch(() => {}); // quota: just not kept
+    else formatCache.delete(url); // retry failures next time
+    return r;
+  })();
   formatCache.set(url, { at: now, reply });
-  void reply.then((r) => r.ok || formatCache.delete(url)); // retry failures next time
   return reply;
 }
 
@@ -254,6 +265,13 @@ chrome.runtime.onMessage.addListener((msg: WorkerMessage, sender, reply) => {
         const url = sender.tab?.url;
         if (!url || mediaBlocked(url)) return { ok: false, error: { code: "unsupported", message: "Not available on this site." } };
         return native("download_media", { url, title: msg.title || undefined, choice: msg.choice, kind: msg.kind, estimatedSize: msg.estimatedSize ?? undefined });
+      }
+      case "add-magnet": {
+        const page = sender.tab?.url ?? "";
+        const s = await loadSettings();
+        const d = decideMagnet(page, s, await cachedAppRules(), Date.now());
+        if (!d.intercept || !/^magnet:\?/i.test(msg.url)) return { ok: false, error: { code: "skipped", message: d.intercept ? "not a magnet link" : d.reason } };
+        return sendDownload(msg.url, { referrer: page, pageUrl: page, silent: d.silent });
       }
       case "download-media":
         if (mediaBlocked(sender.tab?.url) || mediaBlocked(msg.url)) return { ok: false, error: { code: "unsupported", message: "Not available on this site." } };

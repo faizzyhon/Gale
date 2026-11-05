@@ -22,6 +22,8 @@ pub struct AppSettings {
     pub minimize_to_tray: bool,
     pub show_progress_window: bool,
     pub close_window_when_done: bool,
+    /// Resume downloads that were running when Gale closed, and retry after network errors.
+    pub auto_resume: bool,
     // Downloads
     pub connections: u8,
     /// Applied at startup.
@@ -79,6 +81,7 @@ impl Default for AppSettings {
             minimize_to_tray: true,
             show_progress_window: true,
             close_window_when_done: false,
+            auto_resume: true,
             connections: 8,
             max_simultaneous: 3,
             max_retries: 6,

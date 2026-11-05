@@ -29,8 +29,10 @@ const STAGE_LABEL: Record<string, string> = {
   converting: "Converting",
   processing: "Processing",
   verifying: "Verifying",
+  metadata: "Getting torrent info",
+  checking: "Checking files",
 };
-const KIND_LABEL: Record<Download["kind"], string> = { http: "", hls: "Video · HLS", dash: "Video · DASH", video: "Video", audio: "Audio" };
+const KIND_LABEL: Record<Download["kind"], string> = { http: "", hls: "Video · HLS", dash: "Video · DASH", video: "Video", audio: "Audio", torrent: "Torrent" };
 
 const STATUS_LABEL: Record<Download["status"], string> = {
   queued: "Queued",
@@ -144,7 +146,7 @@ export function DownloadTable({ rows, onProperties, onRemove }: Props) {
                     <td className="tabular px-3 whitespace-nowrap text-fg-2">
                       {d.status === "downloading" ? eta(d.totalBytes != null ? d.totalBytes - d.downloadedBytes : null, l?.bytesPerSec) : "—"}
                     </td>
-                    <td className="tabular px-3 text-fg-2">{d.kind !== "http" ? "—" : d.status === "downloading" ? `${l?.activeConnections ?? 0}/${d.connections}` : d.connections}</td>
+                    <td className="tabular px-3 text-fg-2">{d.kind === "torrent" && d.status === "downloading" ? (l?.activeConnections ?? 0) : d.kind !== "http" ? "—" : d.status === "downloading" ? `${l?.activeConnections ?? 0}/${d.connections}` : d.connections}</td>
                     <td className="px-3 whitespace-nowrap">
                       <span className={d.status === "failed" ? "text-bad" : d.status === "completed" ? "text-ok" : ""} title={d.errorMessage ?? undefined}>
                         {/* All bytes on disk but not yet marked complete = size/checksum check + rename in progress */}

@@ -121,7 +121,7 @@ export function CaptureWindow({ pendingId }: { pendingId: string }) {
           ) : (
             <>
               Size: <span className="tabular">{size != null ? bytes(size) : "unknown"}</span>
-              {probe && <> · {probe.ranges ? "resumable, multi-connection" : "not resumable (single connection)"}</>}
+              {info?.url.startsWith("magnet:") ? <> · BitTorrent (the size is known once peers are found)</> : probe && <> · {probe.ranges ? "resumable, multi-connection" : "not resumable (single connection)"}</>}
             </>
           )}
         </p>

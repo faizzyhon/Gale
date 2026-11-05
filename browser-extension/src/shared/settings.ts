@@ -25,6 +25,7 @@ export type WorkerMessage =
   | { type: "download-media"; url: string; filename?: string }
   | { type: "download-page-video" }
   | { type: "media-formats" }
+  | { type: "add-magnet"; url: string }
   | { type: "download-media-format"; title?: string; choice: MediaChoice; kind: string; estimatedSize?: number | null };
 
 /** Gale's quality choice for a video page (mirrors gale-core MediaChoice). */

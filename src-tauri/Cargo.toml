@@ -26,6 +26,7 @@ tauri-plugin-autostart = "=2.7.0"
 tokio-util.workspace = true
 chrono.workspace = true
 uuid.workspace = true
+url.workspace = true
 tokio.workspace = true
 serde.workspace = true
 serde_json.workspace = true

@@ -513,7 +513,8 @@ pub async fn download(
         // Everything happens in the work folder; only the verified result is moved to save_dir.
         .arg("-P")
         .arg(format!("home:{}", job.work_dir.display()))
-        .args(["-o", "%(title).150B [%(id)s].%(ext)s"])
+        // Per-download work folder + unique_path on the move, so the id is not needed to keep names apart.
+        .args(["-o", "%(title).150B.%(ext)s"])
         .args(["--progress-template", &format!("download:{DL}|%(info.format_id)s|%(progress.downloaded_bytes)s|%(progress.total_bytes)s|%(progress.total_bytes_estimate)s|%(progress.speed)s")])
         .args(["--progress-template", &format!("postprocess:{PP}|%(progress.postprocessor)s|%(progress.status)s")])
         .args(["--print", &format!("after_move:{FILE} %(filepath)s")]);

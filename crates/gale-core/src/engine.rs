@@ -118,7 +118,7 @@ pub fn build_client(cfg: &EngineConfig) -> Result<Client> {
 pub struct RequestHeaders(pub Vec<(String, String)>);
 
 impl RequestHeaders {
-    fn to_map(&self) -> HeaderMap {
+    pub(crate) fn to_map(&self) -> HeaderMap {
         let mut m = HeaderMap::new();
         for (k, v) in &self.0 {
             if let (Ok(k), Ok(v)) = (HeaderName::try_from(k.as_str()), HeaderValue::try_from(v.as_str())) {

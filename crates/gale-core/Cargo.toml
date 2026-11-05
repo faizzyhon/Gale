@@ -26,6 +26,9 @@ rand.workspace = true
 percent-encoding = "2"
 scraper = "0.29"
 dirs = "6"
+anyhow = "1"
+bytes = "1"
+librqbit = { version = "9.1.0", default-features = false, features = ["rust-tls"] }
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"

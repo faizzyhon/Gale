@@ -197,6 +197,7 @@ def home():
     <dl class="specs">
       <div><dt>Connections</dt><dd>Up to 32 per file</dd></div>
       <div><dt>Resume</dt><dd>After pause, crash or restart</dd></div>
+      <div><dt>Torrents</dt><dd>Magnet links and .torrent files</dd></div>
       <div><dt>Checks</dt><dd>Size, and SHA-256 if you add one</dd></div>
       <div><dt>Browsers</dt><dd>Chrome and Edge</dd></div>
       <div><dt>Proxy</dt><dd>HTTP, HTTPS, SOCKS5</dd></div>
@@ -303,7 +304,7 @@ def download():
 GUIDE_TOC = [
     ("install", "Install Gale"), ("first", "Your first download"), ("browser", "Connect your browser"),
     ("from-browser", "Downloads from the browser"), ("progress", "The progress window"), ("video", "Download videos"),
-    ("manage", "Manage downloads"), ("queues", "Queues and scheduler"), ("grabber", "Site grabber"),
+    ("torrent", "Download torrents"), ("manage", "Manage downloads"), ("queues", "Queues and scheduler"), ("grabber", "Site grabber"),
     ("settings", "Settings"), ("shortcuts", "Keyboard shortcuts"), ("trouble", "Troubleshooting"), ("uninstall", "Update and uninstall"),
 ]
 
@@ -411,6 +412,19 @@ def guide():
   <p class="note warn">Only download videos you have the right to save. DRM-protected video (most paid streaming services) cannot be downloaded, and Gale doesn't try.</p>
 </section>
 
+<section id="torrent">
+  <h2>Download torrents</h2>
+  <p>Gale downloads magnet links and .torrent files with BitTorrent, next to your other downloads.</p>
+  <ol class="steps">
+    <li><div><p>In the browser, click a magnet link or a .torrent link. The extension sends it to Gale, which asks where to save it. When Gale isn't running, the link opens the way it normally would.</p></div></li>
+    <li><div><p>In Gale, click <b>Add URL</b> and paste a magnet link, or click <b>.torrent file…</b> to pick a file on your PC.</p></div></li>
+    <li><div><p>Gale first gets the torrent's details from other peers (for magnet links), then downloads. The list shows how many peers are connected. A torrent with several files gets its own folder.</p></div></li>
+  </ol>
+  <p>Pause and resume work like any other download, also after a restart: Gale checks the pieces already on disk and fetches only what's missing. Gale shares pieces with other peers while it downloads, which is how BitTorrent works, and stops sharing when the download finishes or is paused. The speed limit applies to torrents too.</p>
+  <p>Turn off <b>Open magnet links and .torrent files in Gale</b> in the extension's options to keep using another torrent app from the browser.</p>
+  <p class="note warn">Only download torrents you have the right to. Sharing copyrighted files without permission is illegal in most countries, and peers can see your IP address.</p>
+</section>
+
 <section id="manage">
   <h2>Manage downloads</h2>
   <p>The main list shows every download with its progress, size, speed, time left and status. Use the sidebar to see only what's in progress, finished, queued or failed, or one category such as Music or Compressed Files. The search box filters by name.</p>
@@ -516,6 +530,8 @@ FAQ = [
     ("Can it resume a download that stopped?", "Yes, if the server supports it, which most do. Paused or interrupted downloads continue where they stopped, even after closing Gale or restarting the PC. Gale checks that the file on the server hasn't changed before continuing."),
     ("Which browsers does it work with?", "Google Chrome and Microsoft Edge, version 116 or later. Other Chromium browsers may work but aren't tested."),
     ("Can I download YouTube videos?", "Gale can save videos from YouTube and most other video sites in the quality you choose. Downloading may be against a site's terms, and some content is protected by copyright: only download what you have the right to. DRM-protected video (Netflix, most paid services) can't be downloaded."),
+    ("Can Gale download torrents?", "Yes. Click a magnet or .torrent link in the browser, paste a magnet link into Add URL, or open a .torrent file from your PC. Gale stops sharing a torrent once it has finished downloading. Peers in a torrent can see your IP address, and you are responsible for what you download and share."),
+    ("Do downloads continue after a restart?", "Yes. Downloads that were running when Gale closed or the PC restarted start again by themselves when Gale starts, and a download that failed because the connection dropped is retried a few times. Turn this off in Settings → General."),
     ("Does Gale run on macOS or Linux?", "Not as a released app. Gale is made for Windows 10 and 11."),
     ("Does it need administrator rights?", "Only once, to install into Program Files for all users. Gale itself runs as a normal program."),
     ("Does Gale update itself?", "Not yet. Download the new setup from this site or GitHub and run it; it updates Gale in place and keeps your list."),
@@ -537,6 +553,14 @@ def faq():
 
 # ---------------------------------------------------------------------------------------- changelog
 LOG = [
+    ("0.5.0", "November 2026", [
+        "Torrent downloads: magnet links and .torrent files, from the browser, the clipboard or a file on your PC",
+        "Unfinished downloads resume by themselves when Gale starts, and downloads that failed because the connection dropped are retried",
+        "The video quality menu is ready sooner: Gale reads the qualities when a video page opens or when you point at a video",
+        "Saved videos are named after the title only, without the video id",
+        "Videos and audio go to the Video and Music categories",
+        "The tray speed limit menu shows the limit set in Settings",
+    ]),
     ("0.4.0", "November 2026", [
         "New one-file setup that also installs Microsoft Edge WebView2 when it's missing, then opens Gale",
         "Installs for all users in Program Files with one administrator prompt",
@@ -609,7 +633,7 @@ def about():
     <p>Gale is released under the <a href="{REPO}/blob/main/LICENSE">MIT License</a>. The code, issue tracker and releases are on <a href="{REPO}">GitHub</a>. Bug reports and pull requests are welcome.</p>
 
     <h2>Credits</h2>
-    <p>Gale stands on the work of many open-source projects, including Rust, Tokio, reqwest, SQLx, Tauri, React and Framer Motion. It ships <a href="https://github.com/yt-dlp/yt-dlp">yt-dlp</a> (Unlicense) and <a href="https://ffmpeg.org">FFmpeg</a> (LGPL); their licences are installed with Gale and listed in <a href="{REPO}/blob/main/scripts/installer/THIRD-PARTY-NOTICES.txt">THIRD-PARTY-NOTICES</a>.</p>
+    <p>Gale stands on the work of many open-source projects, including Rust, Tokio, reqwest, SQLx, Tauri, React and Framer Motion. Torrents use <a href="https://github.com/ikatson/rqbit">librqbit</a> (Apache 2.0). It ships <a href="https://github.com/yt-dlp/yt-dlp">yt-dlp</a> (Unlicense) and <a href="https://ffmpeg.org">FFmpeg</a> (LGPL); their licences are installed with Gale and listed in <a href="{REPO}/blob/main/scripts/installer/THIRD-PARTY-NOTICES.txt">THIRD-PARTY-NOTICES</a>.</p>
 
     <h2>Contact</h2>
     <p>For bugs and feature requests, please <a href="{REPO}/issues">open an issue on GitHub</a> so others can find the answer too. For anything else: <span class="mono">faizzyhon@gmail.com</span></p>

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { DEFAULT_SETTINGS, decide, hostMatches, isDownloadLink, type AppRules, type Settings } from "../src/shared/rules";
+import { DEFAULT_SETTINGS, decide, decideMagnet, hostMatches, isDownloadLink, videoPageKind, type AppRules, type Settings } from "../src/shared/rules";
 
 const s = (p: Partial<Settings> = {}): Settings => ({ ...DEFAULT_SETTINGS, ...p });
 const app: AppRules = { enabled: true, excludedDomains: ["corp.example"], excludedTypes: ["msi"] };
@@ -59,4 +59,31 @@ test("store build blocks YouTube media only", async () => {
   assert.equal(mediaBlocked("https://notyoutube.com/v", true), false);
   assert.equal(mediaBlocked("https://vimeo.com/1", true), false);
   assert.equal(mediaBlocked("https://www.youtube.com/watch?v=x", false), false);
+});
+
+test("torrents are caught whatever the type list says", () => {
+  const t = { url: "https://tracker.example/dl.php?id=5", filename: "C:\\Users\\me\\Downloads\\ubuntu.torrent", mime: "application/x-bittorrent", fileSize: 30_000 };
+  assert.equal(decide(t, s({ fileTypes: ["zip"], minSizeMB: 5 }), app, NOW).intercept, true);
+  assert.equal(decide(t, s({ fileTypes: ["zip"], catchTorrents: false }), app, NOW).intercept, false);
+  assert.equal(decide({ ...t, filename: "x", mime: "application/octet-stream", url: "https://x.org/a.torrent" }, s({ fileTypes: [] }), app, NOW).intercept, true);
+});
+
+test("magnet clicks follow the switches", () => {
+  assert.deepEqual(decideMagnet("https://site.example/t/1", s(), app, NOW), { intercept: true, silent: false });
+  assert.equal(decideMagnet("https://site.example/t/1", s({ catchTorrents: false }), app, NOW).intercept, false);
+  assert.equal(decideMagnet("https://site.example/t/1", s({ enabled: false }), app, NOW).intercept, false);
+  assert.equal(decideMagnet("https://a.corp.example/t/1", s(), app, NOW).intercept, false);
+  assert.equal(decideMagnet("https://site.example/t/1", s(), { ...app, enabled: false }, NOW).intercept, false);
+});
+
+test("video pages are recognised", () => {
+  assert.equal(videoPageKind("https://www.youtube.com/watch?v=dQw4w9WgXcQ"), "video");
+  assert.equal(videoPageKind("https://m.youtube.com/shorts/abc123"), "video");
+  assert.equal(videoPageKind("https://www.youtube.com/"), "site");
+  assert.equal(videoPageKind("https://www.youtube.com/@channel"), "site");
+  assert.equal(videoPageKind("https://youtu.be/dQw4w9WgXcQ"), "video");
+  assert.equal(videoPageKind("https://vimeo.com/76979871"), "video");
+  assert.equal(videoPageKind("https://x.com/user/status/123"), "video");
+  assert.equal(videoPageKind("https://news.example/article"), "other");
+  assert.equal(videoPageKind("not a url"), "other");
 });

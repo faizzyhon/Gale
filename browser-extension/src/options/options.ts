@@ -14,6 +14,7 @@ async function fill() {
   el<HTMLInputElement>("askFirst").checked = s.askFirst;
   el<HTMLInputElement>("sendCookies").checked = s.sendCookies;
   el<HTMLInputElement>("showMediaButton").checked = s.showMediaButton;
+  el<HTMLInputElement>("catchTorrents").checked = s.catchTorrents;
 }
 
 form.onsubmit = async (e) => {
@@ -28,6 +29,7 @@ form.onsubmit = async (e) => {
     askFirst: el<HTMLInputElement>("askFirst").checked,
     sendCookies: el<HTMLInputElement>("sendCookies").checked,
     showMediaButton: el<HTMLInputElement>("showMediaButton").checked,
+    catchTorrents: el<HTMLInputElement>("catchTorrents").checked,
   });
   const saved = document.getElementById("saved")!;
   saved.textContent = "Saved";

@@ -8,7 +8,7 @@ Listing text is in [listing.md](listing.md). This file has the store-specific fi
 cd browser-extension
 pnpm install
 pnpm run build:store          # → browser-extension/dist-store/
-cd dist-store && zip -r ../../Gale-Chrome-Web-Store-0.4.0.zip . && cd ../..
+cd dist-store && zip -r ../../Gale-Chrome-Web-Store-0.5.0.zip . && cd ../..
 ```
 
 The store build is the normal extension with two differences:
@@ -80,13 +80,14 @@ Add this line to the top of the description so reviewers and users know the app 
 | `tabs` | Reads the current tab's address and title to label downloads and for "Download video on this page"; re-attaches the content script to open tabs after an update. |
 | `scripting` | Runs a one-time script when the user picks "Download all links" / "Download selected links" (to collect the links) or "Copy download address" (to write to the clipboard). |
 | Host permission `<all_urls>` | Downloads and media can come from any website, so the cookie lookup, media detection and the Download button must work on any site the user visits. |
-| Content script on all pages | Shows the Download button when the user hovers a video or audio element. It reads only that element's source address and video height. |
+| Content script on all pages | Shows the Download button when the user hovers a video or audio element (it reads only that element's source address and video height), and passes magnet links the user clicks to the Gale app. |
 
 **Remote code:** No, I am not using remote code. All code is in the package.
 
 **Data usage** — tick these, because the extension handles them (only to pass them to the local app):
 
-- [x] Web history — addresses of downloads and media the user chooses to download
+- [x] Web history — addresses of downloads and media the user chooses to download, and of video pages on video
+  sites (sent to the local app to prepare the quality menu)
 - [x] Authentication information — cookies for a download's address, when "Send cookies" is on
 - [x] Website content — links on the page, only when the user picks "Download all/selected links"
 
@@ -121,7 +122,7 @@ Leave everything else unticked. Then certify all three statements:
 
 # Microsoft Edge Add-ons
 
-Edge accepts the same package: upload `Gale-Chrome-Web-Store-0.4.0.zip` at
+Edge accepts the same package: upload `Gale-Chrome-Web-Store-0.5.0.zip` at
 https://partner.microsoft.com/dashboard/microsoftedge (free account). Use the same listing text, screenshots,
 category (Productivity), privacy policy URL and permission explanations as above. Edge also assigns its own ID — add
 it to `ALLOWED_ORIGINS` and `allowed_origins` as in step 2.

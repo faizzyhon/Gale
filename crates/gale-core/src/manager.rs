@@ -2,8 +2,9 @@
 
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use tokio::sync::{watch, Semaphore};
 use tokio_util::sync::CancellationToken;
@@ -12,7 +13,7 @@ use crate::db::{Db, Download, DownloadStatus, NewDownload};
 use crate::engine::{self, EngineConfig, Job, Outcome, RequestHeaders, Tick};
 use crate::media::{self, MediaChoice, MediaInfo, MediaJob, MediaNet, MediaOutcome, MediaTools};
 use crate::security::{sanitize_filename, temp_path_for, unique_path, validate_url};
-use crate::{categories, Error, Result};
+use crate::{categories, torrent, Error, Result};
 
 /// Implemented by the UI layer (Tauri events) – the manager never knows about windows.
 pub trait EventSink: Send + Sync + 'static {
@@ -68,7 +69,16 @@ pub struct Manager {
     busy_queues: Mutex<HashSet<i64>>,
     shutdown_queues: Mutex<HashSet<i64>>,
     media_tools: Mutex<Option<MediaTools>>,
+    /// Started on the first torrent download, so people who never use BitTorrent never open its ports.
+    torrent: tokio::sync::OnceCell<Arc<librqbit::Session>>,
+    /// Retry downloads that failed because the network went away.
+    auto_retry: AtomicBool,
+    /// Download id -> (attempts so far, when to try again).
+    retries: Mutex<HashMap<i64, (u32, Instant)>>,
 }
+
+/// Automatic retries after a network failure: 15 s, 30 s, 1 min, 2 min, 4 min.
+const AUTO_RETRIES: u32 = 5;
 
 impl Manager {
     pub fn new(db: Db, cfg: EngineConfig, max_simultaneous: usize, events: Arc<dyn EventSink>) -> Result<Arc<Self>> {
@@ -86,11 +96,18 @@ impl Manager {
             busy_queues: Mutex::new(HashSet::new()),
             shutdown_queues: Mutex::new(HashSet::new()),
             media_tools: Mutex::new(None),
+            torrent: tokio::sync::OnceCell::new(),
+            auto_retry: AtomicBool::new(false),
+            retries: Mutex::new(HashMap::new()),
         }))
     }
 
     pub fn db(&self) -> &Db {
         &self.db
+    }
+
+    pub fn set_auto_retry(&self, on: bool) {
+        self.auto_retry.store(on, Ordering::Relaxed);
     }
 
     pub fn config(&self) -> EngineConfig {
@@ -154,8 +171,17 @@ impl Manager {
     }
 
     pub async fn add(self: &Arc<Self>, opts: AddOptions) -> Result<i64> {
-        let url = validate_url(&opts.url)?;
-        if let Some(existing) = self.db.find_unfinished_by_url(url.as_str()).await? {
+        let magnet = torrent::is_magnet(&opts.url);
+        let local = torrent::local_torrent(&opts.url);
+        let (url, web_url) = if magnet {
+            (torrent::validate_magnet(&opts.url)?, None)
+        } else if local.is_some() {
+            (opts.url.trim().to_string(), None)
+        } else {
+            let u = validate_url(&opts.url)?;
+            (u.to_string(), Some(u))
+        };
+        if let Some(existing) = self.db.find_unfinished_by_url(&url).await? {
             return Err(Error::InvalidState(format!("this URL is already in the list (download #{existing})")));
         }
         let save_dir = PathBuf::from(&opts.save_dir);
@@ -181,29 +207,37 @@ impl Manager {
                 };
                 sanitize_filename(&format!("{}.{ext}", m.title.as_deref().unwrap_or("video")))
             }
+            None if magnet => sanitize_filename(&torrent::magnet_name(&url).unwrap_or_else(|| "torrent".into())),
+            None if local.is_some() => sanitize_filename(&local.as_ref().unwrap().file_name().unwrap_or_default().to_string_lossy()),
             None => opts
                 .file_name
                 .clone()
-                .or_else(|| crate::security::filename_from_url(&url))
+                .or_else(|| web_url.as_ref().and_then(crate::security::filename_from_url))
                 .map(|n| sanitize_filename(&n))
                 .unwrap_or_else(|| "download".into()),
         };
+        // A .torrent link is opened as a torrent rather than saved as a small file.
+        let is_torrent = opts.media.is_none() && (magnet || torrent::is_torrent_name(&name));
         let cats = self.db.list_categories().await?;
         // Read before any await: a guard held across `.await` deadlocks the runtime.
         let connections = opts.connections.unwrap_or_else(|| self.cfg.lock().unwrap().connections) as i64;
         let id = self
             .db
             .insert_download(&NewDownload {
-                url: url.to_string(),
+                url,
                 referrer: opts.referrer,
                 file_name: name.clone(),
                 save_dir: opts.save_dir,
                 connections,
-                category_id: categories::categorize(&cats, &name).map(|c| c.id),
+                // Media goes to Video/Audio by kind; the provisional name's extension says nothing about it.
+                category_id: match &opts.media {
+                    Some(m) => media_category(&cats, m),
+                    None => categories::categorize(&cats, &name).map(|c| c.id),
+                },
                 expected_sha256: opts.expected_sha256,
                 source: opts.source,
                 status: Some(if opts.start || opts.queue_id.is_some() { DownloadStatus::Queued } else { DownloadStatus::Paused }),
-                kind: opts.media.as_ref().map(|m| m.kind.clone()),
+                kind: if is_torrent { Some("torrent".into()) } else { opts.media.as_ref().map(|m| m.kind.clone()) },
             })
             .await?;
         if let Some(m) = &opts.media {
@@ -250,9 +284,19 @@ impl Manager {
             let result = this.drive(id, token.clone()).await;
             this.running.lock().unwrap().remove(&id);
             let finish = match result {
-                Ok(()) => Ok(()),
+                Ok(()) => {
+                    this.retries.lock().unwrap().remove(&id);
+                    Ok(())
+                }
                 Err(e) => {
                     tracing::warn!(id, code = e.code(), error = %e, "download failed");
+                    if e.is_transient() && this.auto_retry.load(Ordering::Relaxed) {
+                        let mut r = this.retries.lock().unwrap();
+                        let n = r.get(&id).map_or(0, |v| v.0) + 1;
+                        if n <= AUTO_RETRIES {
+                            r.insert(id, (n, Instant::now() + Duration::from_secs(15 << (n - 1))));
+                        }
+                    }
                     this.db.mark_failed(id, &e).await
                 }
             };
@@ -276,6 +320,9 @@ impl Manager {
             _ = token.cancelled() => return self.after_cancel(id).await,
         };
         let d = self.db.get_download(id).await?;
+        if d.kind == "torrent" {
+            return self.drive_torrent(id, d, token).await;
+        }
         if d.kind != "http" {
             return self.drive_media(id, d, token).await;
         }
@@ -445,6 +492,168 @@ impl Manager {
         }
     }
 
+    async fn torrent_session(&self) -> Result<Arc<librqbit::Session>> {
+        self.torrent.get_or_try_init(torrent::new_session).await.cloned()
+    }
+
+    /// Downloads a .torrent file with the same client, proxy and browser cookies as any other download.
+    async fn fetch_torrent_file(&self, id: i64, url: &str) -> Result<bytes::Bytes> {
+        let client = self.client.lock().unwrap().clone();
+        let headers = self.headers.lock().unwrap().get(&id).cloned().unwrap_or_default();
+        let mut resp = client.get(validate_url(url)?).headers(headers.to_map()).send().await?;
+        if !resp.status().is_success() {
+            return Err(Error::Http { status: resp.status().as_u16() });
+        }
+        let mut buf = Vec::new();
+        while let Some(chunk) = resp.chunk().await? {
+            buf.extend_from_slice(&chunk);
+            if buf.len() > torrent::MAX_TORRENT_FILE {
+                return Err(Error::Torrent("the .torrent file is too large".into()));
+            }
+        }
+        Ok(buf.into())
+    }
+
+    async fn drive_torrent(self: &Arc<Self>, id: i64, d: Download, token: CancellationToken) -> Result<()> {
+        use librqbit::{AddTorrent, AddTorrentOptions, AddTorrentResponse, TorrentStatsState};
+        self.db.set_status(id, DownloadStatus::Downloading, None).await?;
+        self.notify(id).await;
+        let tick = |stage: Option<&'static str>, written: u64, total: Option<u64>, bps: f64, peers: u32| Tick {
+            written,
+            total,
+            bytes_per_sec: bps,
+            active_connections: peers,
+            segments: vec![],
+            stage,
+        };
+        let total = d.total_bytes.map(|t| t as u64);
+        self.events.progress(id, &tick(Some("metadata"), d.downloaded_bytes as u64, total, 0.0, 0));
+        let session = self.torrent_session().await?;
+        let save_dir = PathBuf::from(&d.save_dir);
+        tokio::fs::create_dir_all(&save_dir).await?;
+
+        // The torrent's metadata is kept after the first start, so resuming needs neither the original .torrent
+        // link (which may have expired) nor peers to send the metadata of a magnet link again.
+        let (meta, folder) = match (self.db.get_metadata(id, "torrent").await?, self.db.get_metadata(id, "torrent_folder").await?) {
+            (Some(hex), Some(folder)) => {
+                (bytes::Bytes::from(hex::decode(hex).map_err(|_| Error::Torrent("the saved torrent data is damaged".into()))?), folder)
+            }
+            _ => {
+                let add = if torrent::is_magnet(&d.url) {
+                    AddTorrent::from_url(torrent::validate_magnet(&d.url)?)
+                } else if let Some(path) = torrent::local_torrent(&d.url) {
+                    let bytes = tokio::fs::read(&path).await?;
+                    if bytes.len() > torrent::MAX_TORRENT_FILE {
+                        return Err(Error::Torrent("the .torrent file is too large".into()));
+                    }
+                    AddTorrent::from_bytes(bytes)
+                } else {
+                    AddTorrent::from_bytes(self.fetch_torrent_file(id, &d.url).await?)
+                };
+                let mut list = session.add_torrent(add, Some(AddTorrentOptions { list_only: true, ..Default::default() }));
+                // Repeat the stage so a progress window opened meanwhile shows it too.
+                let mut every = tokio::time::interval(Duration::from_secs(1));
+                let resp = loop {
+                    tokio::select! {
+                        r = &mut list => break r.map_err(torrent::err)?,
+                        _ = every.tick() => self.events.progress(id, &tick(Some("metadata"), 0, None, 0.0, 0)),
+                        _ = token.cancelled() => return self.after_cancel(id).await,
+                    }
+                };
+                let AddTorrentResponse::ListOnly(l) = resp else {
+                    return Err(Error::Torrent("could not read the torrent".into()));
+                };
+                // Multi-file torrents get their own folder (librqbit's choice of name); single files go straight in.
+                let sub = l.output_folder.strip_prefix(torrent::session_root()).map(|p| p.to_path_buf()).unwrap_or_default();
+                let target = match l.info.iter_file_details().next() {
+                    Some(f) if sub.as_os_str().is_empty() => f.filename.to_pathbuf(),
+                    _ => sub.clone(),
+                };
+                let name = sanitize_filename(&l.info.name().map(|n| n.into_owned()).unwrap_or_else(|| d.file_name.clone()));
+                let bytes_total: u64 = l.info.iter_file_lengths().sum();
+                // Never write into a file or folder that is already there: use a new "Name (1)" folder instead.
+                let (folder, final_path) = if save_dir.join(&target).exists() {
+                    let dir = unique_path(&save_dir, &target.to_string_lossy());
+                    let inside = if sub.as_os_str().is_empty() { dir.join(&target) } else { dir.clone() };
+                    (dir, inside)
+                } else {
+                    (save_dir.join(&sub), save_dir.join(&target))
+                };
+                let cats = self.db.list_categories().await?;
+                sqlx::query("UPDATE downloads SET file_name = ?, final_path = ?, total_bytes = ?, category_id = ? WHERE id = ?")
+                    .bind(&name)
+                    .bind(final_path.to_string_lossy().as_ref())
+                    .bind(bytes_total as i64)
+                    .bind(categories::categorize(&cats, &name).map(|c| c.id))
+                    .bind(id)
+                    .execute(self.db.pool())
+                    .await?;
+                self.db.set_metadata(id, "torrent", &hex::encode(&l.torrent_bytes)).await?;
+                let folder = folder.to_string_lossy().into_owned();
+                self.db.set_metadata(id, "torrent_folder", &folder).await?;
+                self.db.set_metadata(id, "torrent_path", &final_path.to_string_lossy()).await?;
+                self.notify(id).await;
+                (l.torrent_bytes, folder)
+            }
+        };
+
+        let rate = self.media_net().rate_limit_bps;
+        let opts = AddTorrentOptions {
+            output_folder: Some(folder),
+            // Keep pieces already on disk: librqbit checks them and downloads only what is missing.
+            overwrite: true,
+            ratelimits: librqbit::limits::LimitsConfig { download_bps: u32::try_from(rate).ok().and_then(std::num::NonZeroU32::new), upload_bps: None },
+            ..Default::default()
+        };
+        let handle = session
+            .add_torrent(AddTorrent::from_bytes(meta), Some(opts))
+            .await
+            .map_err(torrent::err)?
+            .into_handle()
+            .ok_or_else(|| Error::Torrent("could not start the torrent".into()))?;
+        let tid = handle.id();
+
+        let outcome = loop {
+            let s = handle.stats();
+            let total = Some(s.total_bytes);
+            match &s.state {
+                TorrentStatsState::Error => break Err(Error::Torrent(s.error.clone().unwrap_or_else(|| "torrent error".into()))),
+                // While checking, librqbit reports bytes *checked*, not bytes it has: keep the last real figure.
+                TorrentStatsState::Initializing { .. } => {
+                    self.events.progress(id, &tick(Some("checking"), d.downloaded_bytes as u64, total, 0.0, 0));
+                }
+                _ => {
+                    let (bps, peers) = s.live.as_ref().map(|l| (l.download_speed.as_bytes() as f64, l.snapshot.peer_stats.live)).unwrap_or((0.0, 0));
+                    self.events.progress(id, &tick(None, s.progress_bytes, total, bps, peers));
+                    if let Err(e) = self.db.set_downloaded(id, s.progress_bytes, total).await {
+                        tracing::error!(id, error = %e, "failed to persist torrent progress");
+                    }
+                }
+            }
+            if s.finished && matches!(s.state, TorrentStatsState::Live | TorrentStatsState::Paused) {
+                break Ok(s.total_bytes);
+            }
+            tokio::select! {
+                _ = tokio::time::sleep(Duration::from_secs(1)) => {}
+                _ = token.cancelled() => break Err(Error::InvalidState("stopped".into())),
+            }
+        };
+        // Gale does not seed after a download finishes or while it is paused.
+        let cancelled = self.db.get_download(id).await?.status == DownloadStatus::Cancelled;
+        if let Err(e) = session.delete(tid.into(), cancelled && outcome.is_err()).await {
+            tracing::warn!(id, error = %e, "could not remove torrent from session");
+        }
+        match outcome {
+            Ok(bytes) => {
+                let path = self.db.get_metadata(id, "torrent_path").await?.unwrap_or(d.save_dir.clone());
+                self.db.mark_completed(id, &path, bytes, None).await?;
+                Ok(())
+            }
+            Err(_) if token.is_cancelled() => self.after_cancel(id).await,
+            Err(e) => Err(e),
+        }
+    }
+
     /// A cancelled token means pause unless `cancel()` already recorded a terminal status.
     async fn after_cancel(&self, id: i64) -> Result<()> {
         let d = self.db.get_download(id).await?;
@@ -482,6 +691,8 @@ impl Manager {
     }
 
     /// Cancel: stop transfer and delete the partial temp file (never the completed file).
+    /// shortcut: a torrent cancelled while paused keeps its partial files (librqbit deletes them only for a
+    /// torrent in its session); delete them by re-adding it paused if people ask.
     pub async fn cancel(&self, id: i64) -> Result<()> {
         if self.db.get_download(id).await?.status == DownloadStatus::Completed {
             return Err(Error::InvalidState("a completed download cannot be cancelled".into()));
@@ -549,6 +760,11 @@ impl Manager {
             self.events.changed(&d);
         }
     }
+}
+
+fn media_category(cats: &[categories::Category], m: &MediaRequest) -> Option<i64> {
+    let want = if m.kind == "audio" { "Audio" } else { "Video" };
+    cats.iter().find(|c| c.name == want).map(|c| c.id)
 }
 
 /// Atomically claim a free name by creating its temp file, so parallel downloads never collide.
@@ -642,6 +858,28 @@ impl Manager {
     }
 
     /// Queue pump + scheduler loop for the lifetime of the app.
+    /// Starts failed downloads whose automatic retry is due, if they are still failed (not removed or restarted).
+    async fn retry_due(self: &Arc<Self>) {
+        let now = Instant::now();
+        let due: Vec<i64> = {
+            let mut r = self.retries.lock().unwrap();
+            let ids: Vec<i64> = r.iter().filter(|(_, v)| v.1 <= now).map(|(id, _)| *id).collect();
+            for id in &ids {
+                // Push far out; the next failure sets a new time, success removes the entry.
+                r.get_mut(id).unwrap().1 = now + Duration::from_secs(86_400 * 365);
+            }
+            ids
+        };
+        for id in due {
+            if matches!(self.db.get_download(id).await, Ok(d) if d.status == DownloadStatus::Failed) {
+                tracing::info!(id, "retrying after a network error");
+                if let Err(e) = self.start(id).await {
+                    tracing::warn!(id, error = %e, "automatic retry could not start");
+                }
+            }
+        }
+    }
+
     pub fn spawn_background(self: &Arc<Self>) {
         let this = self.clone();
         tokio::spawn(async move {
@@ -654,6 +892,7 @@ impl Manager {
                 if let Err(e) = this.pump_queues().await {
                     tracing::error!(error = %e, "queue pump failed");
                 }
+                this.retry_due().await;
             }
         });
     }

@@ -235,6 +235,18 @@ fn set_speed_limit(app: &AppHandle, kbps: u64) {
     });
 }
 
+/// The tray's speed-limit check marks, kept so Settings can update them too.
+struct TrayPresets(Vec<CheckMenuItem<tauri::Wry>>);
+
+/// Ticks the preset matching `kbps` (none for a custom value).
+pub fn sync_tray_limit(app: &AppHandle, kbps: u64) {
+    if let Some(p) = app.try_state::<TrayPresets>() {
+        for (item, (k, _)) in p.0.iter().zip(SPEED_PRESETS) {
+            let _ = item.set_checked(k == kbps);
+        }
+    }
+}
+
 fn build_tray(app: &AppHandle) -> tauri::Result<()> {
     let show = MenuItem::with_id(app, "show", "Show Gale", true, None::<&str>)?;
     let pause = MenuItem::with_id(app, "pause_all", "Pause all downloads", true, None::<&str>)?;
@@ -246,6 +258,7 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
         .collect::<tauri::Result<Vec<_>>>()?;
     let preset_refs: Vec<&dyn tauri::menu::IsMenuItem<tauri::Wry>> = presets.iter().map(|i| i as _).collect();
     let speed = Submenu::with_items(app, "Speed limit", true, &preset_refs)?;
+    app.manage(TrayPresets(presets.clone()));
     let menu = Menu::with_items(app, &[&show, &pause, &speed, &PredefinedMenuItem::separator(app)?, &quit])?;
     TrayIconBuilder::with_id("main")
         .icon(app.default_window_icon().cloned().expect("bundled icon"))
@@ -256,9 +269,7 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
             id if id.starts_with("limit_") => {
                 let Ok(kbps) = id["limit_".len()..].parse::<u64>() else { return };
                 set_speed_limit(app, kbps);
-                for (item, (k, _)) in presets.iter().zip(SPEED_PRESETS) {
-                    let _ = item.set_checked(k == kbps);
-                }
+                sync_tray_limit(app, kbps);
             }
             "show" => show_main(app),
             "pause_all" => {
@@ -318,14 +329,15 @@ pub fn run() {
             let db_path = handle.path().app_data_dir()?.join("gale.db");
             apply_pending_restore(&db_path);
             let (global, hosts) = (RateLimiter::new(0), HostLimiter::new(0));
-            let (manager, s) = tauri::async_runtime::block_on(async {
+            let (manager, s, recovered) = tauri::async_runtime::block_on(async {
                 let db = Db::open(&db_path).await?;
                 let recovered = db.recover_interrupted().await?;
-                tracing::info!(recovered, "database ready");
+                tracing::info!(recovered = recovered.len(), "database ready");
                 let s = settings::load(&db, &handle).await;
                 let cfg = s.engine_config(&global, &hosts);
                 let m = Manager::new(db, cfg, s.max_simultaneous as usize, Arc::new(TauriEvents(handle.clone())))?;
-                Ok::<_, gale_core::Error>((m, s))
+                m.set_auto_retry(s.auto_resume);
+                Ok::<_, gale_core::Error>((m, s, recovered))
             })?;
             // yt-dlp/FFmpeg ship in tools/ next to gale.exe; without them only video downloads are unavailable.
             let exe_dir = std::env::current_exe().ok().and_then(|p| p.parent().map(|d| d.to_path_buf()));
@@ -336,7 +348,16 @@ pub fn run() {
             }
             tauri::async_runtime::spawn({
                 let m = manager.clone();
-                async move { m.spawn_background() }
+                // Downloads that were running when Gale closed (or the PC restarted) carry on by themselves.
+                let resume = if s.auto_resume { recovered } else { vec![] };
+                async move {
+                    m.spawn_background();
+                    for id in resume {
+                        if let Err(e) = m.start(id).await {
+                            tracing::warn!(id, error = %e, "could not resume download");
+                        }
+                    }
+                }
             });
             app.manage(AppState {
                 manager,

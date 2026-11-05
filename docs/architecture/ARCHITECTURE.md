@@ -9,6 +9,7 @@ architecture; deviations must be recorded in `docs/architecture/DECISIONS.md`.
 | Area | Hard requirement | Where it lives |
 |---|---|---|
 | Engine | Real multi-connection HTTP(S) range downloads, single-connection fallback, crash-safe resume, never mark incomplete as complete | `crates/gale-core/src/engine` |
+| Torrents | Magnet links and .torrent files through one lazily started librqbit session (DHT, trackers, no persistence of its own). Gale keeps the torrent metadata in `download_metadata`, re-adds the torrent on resume with `overwrite` so librqbit rechecks pieces on disk, and removes it from the session on pause, cancel and completion (no seeding) | `crates/gale-core/src/torrent.rs`, `Manager::drive_torrent` |
 | Persistence | SQLite, migrations, FK, indexes, transactions, all UI data from DB | `crates/gale-core/src/db`, `crates/gale-core/migrations` |
 | Browser | MV3 extension, native messaging, interception per user rules, context menus, media detection (no DRM bypass) | `browser-extension/`, `src-tauri/src/native_messaging` |
 | Scheduling | Multiple queues, priorities, scheduler that survives restart | `crates/gale-core/src/queue`, `.../scheduler` (Phase 6) |
@@ -137,6 +138,7 @@ own limit to host is 4 GiB; we cap far lower). Same framing on the named pipe.
 { "v":1, "id":"<uuid>", "cmd":"add_download",
   "payload": { "url":"https://…", "referrer":"…", "filename":"…", "fileSize":123,
                "mime":"…", "cookies":"a=b; c=d", "userAgent":"…", "queue": null, "silent": false } }
+// add_download also takes a magnet: link as "url" (validated: btih/btmh hash, ≤ 8 KiB); file: is always refused
 { "v":1, "id":"…", "cmd":"add_batch",  "payload": { "items":[{ "url":"…" }], "referrer":"…" } }
 { "v":1, "id":"…", "cmd":"ping" }
 { "v":1, "id":"…", "cmd":"get_rules" }          // interception settings owned by the app

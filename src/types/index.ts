@@ -34,7 +34,7 @@ export interface Download {
   categoryId: number | null;
   source: string;
   /** "http" = direct engine; otherwise the media pipeline. */
-  kind: "http" | "hls" | "dash" | "video" | "audio";
+  kind: "http" | "hls" | "dash" | "video" | "audio" | "torrent";
   createdAt: string;
   startedAt: string | null;
   completedAt: string | null;
@@ -57,7 +57,7 @@ export interface ProgressEvent {
   stage?: MediaStage;
 }
 
-export type MediaStage = "extracting" | "downloading" | "merging" | "converting" | "processing" | "verifying";
+export type MediaStage = "extracting" | "downloading" | "merging" | "converting" | "processing" | "verifying" | "metadata" | "checking";
 
 export interface Live {
   bytesPerSec: number;
@@ -146,6 +146,7 @@ export interface AppSettings {
   minimizeToTray: boolean;
   showProgressWindow: boolean;
   closeWindowWhenDone: boolean;
+  autoResume: boolean;
   connections: 1 | 2 | 4 | 8 | 16 | 32;
   maxSimultaneous: number;
   maxRetries: number;

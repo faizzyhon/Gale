@@ -8,7 +8,7 @@ Copy-paste text for every store and download site. Store-specific fields are in 
 |---|---|
 | Product name | Gale Download Manager |
 | Short name | Gale |
-| Version | 0.4.0 |
+| Version | 0.5.0 |
 | Developer / publisher | Muhammad Faizan |
 | Website | https://faizzyhon.com |
 | Source code | https://github.com/faizzyhon/Gale |
@@ -21,7 +21,7 @@ Copy-paste text for every store and download site. Store-specific fields are in 
 | Category | Utilities / Download managers (Chrome Web Store: Productivity → Tools) |
 | Platform | Windows 10 (1809+) and Windows 11, 64-bit |
 | Languages | English |
-| Installer | `Gale_Setup_0.4.0.exe` (or `Gale_0.4.0_x64.msi`), all users (Program Files), asks for administrator approval; updates in place |
+| Installer | `Gale_Setup_0.5.0.exe` (or `Gale_0.5.0_x64.msi`), all users (Program Files), asks for administrator approval; updates in place |
 
 ## One-line summary (≤ 80 characters)
 
@@ -41,8 +41,13 @@ Gale splits each file into up to 32 parts and downloads them at the same time, s
 connection. If a server does not support this, Gale falls back to a normal download automatically.
 
 NEVER START OVER
-Pause any download and continue later, even after closing Gale or restarting your PC. If your connection drops,
-Gale retries and picks up where it stopped. Every finished file is checked before it is marked complete.
+Pause any download and continue later. Downloads that were running when you closed Gale or restarted your PC carry
+on by themselves. If your connection drops, Gale retries and picks up where it stopped. Every finished file is
+checked before it is marked complete.
+
+TORRENTS
+Click a magnet or .torrent link in the browser, paste a magnet link, or open a .torrent file. Torrents download next
+to your other files, with pause, resume and the same speed limit. Gale stops sharing when a torrent finishes.
 
 WORKS WITH YOUR BROWSER
 The Gale extension for Chrome and Edge sends downloads to Gale automatically. A "Download File Info" window lets you
@@ -76,9 +81,10 @@ https://github.com/faizzyhon/Gale/releases
 ## Feature list (for sites with bullet fields)
 
 - Multi-connection downloads (up to 32 per file)
-- Pause, resume and crash-safe recovery
+- Pause, resume, crash-safe recovery and automatic resume
 - Chrome and Edge integration with a "Download File Info" window
 - Video downloads in your choice of quality
+- Torrent downloads: magnet links and .torrent files
 - Categories, queues and a scheduler
 - Speed limits, proxy support
 - Per-download progress window with live speed graph
@@ -88,21 +94,18 @@ https://github.com/faizzyhon/Gale/releases
 ## Keywords / tags
 
 download manager, downloader, download accelerator, resume downloads, multi-connection, video downloader,
-Chrome download, open source, free, Windows 11
+torrent downloader, magnet links, Chrome download, open source, free, Windows 11
 
-## What's new in 0.4.0 (release notes)
+## What's new in 0.5.0 (release notes)
 
-- New "Download File Info" window for downloads caught from the browser: choose name, category and folder first
-- New progress window for each download, with live speed graph, per-connection view, pause/resume and a completion card
-- Smoother animations throughout the app
-- Gale now starts with Windows by default (in the tray); turn it off in Settings → General
-- Quality menu on videos in the browser: pick a quality and the download starts without opening Gale
-- Speed limit presets in the tray menu
-- Press Ctrl+V in Gale, or drag links onto it, to add copied links
-- New one-file setup, `Gale_Setup_0.4.0.exe`, which also installs Microsoft Edge WebView2 Runtime when a PC lacks it
-- The installer now installs for all users in Program Files (administrator approval), updates an existing install in place, and replaces an older per-user install while keeping your downloads list
-- New About page with developer, privacy and license information
-- Browser extension: works in tabs that were open before an update, and the video button works on more players
+- Torrent downloads: magnet links and .torrent files, from the browser, the clipboard, Add URL or a file on your PC
+- Unfinished downloads resume by themselves when Gale starts; downloads that fail because the connection dropped are
+  retried (Settings → General)
+- The video quality menu in the browser is ready sooner: Gale reads the qualities as soon as a video page opens, or
+  when you point at a streamed video
+- Saved videos are named after the title only, without the video id
+- Videos and audio go to the Video and Music categories
+- The tray speed limit menu now shows a limit changed in Settings
 
 ## Developer bio (≤ 300 characters)
 

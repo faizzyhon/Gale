@@ -23,12 +23,15 @@ const STAGE_TEXT: Record<string, string> = {
   converting: "Converting…",
   processing: "Processing…",
   verifying: "Verifying file…",
+  metadata: "Getting torrent info from peers…",
+  checking: "Checking files already on disk…",
 };
 const COMPACT = 330;
 const EXPANDED = 520;
 
 function iconFor(d: Download) {
   if (d.kind === "audio" || /\.(mp3|m4a|flac|wav|ogg|opus)$/i.test(d.fileName)) return FileAudio;
+  if (d.kind === "torrent") return FileArchive;
   if (d.kind !== "http" || /\.(mp4|mkv|webm|avi|mov)$/i.test(d.fileName)) return FileVideo;
   if (/\.(zip|rar|7z|tar|gz|iso)$/i.test(d.fileName)) return FileArchive;
   if (/\.(pdf|docx?|xlsx?|pptx?|txt|epub)$/i.test(d.fileName)) return FileText;
@@ -159,7 +162,7 @@ export function DownloadWindow({ id }: { id: number }) {
               <Stat k="Downloaded" v={<>{bytes(d.downloadedBytes)} <span className="text-fg-3">/ {bytes(d.totalBytes)}</span></>} />
               <Stat k="Speed" v={d.status === "downloading" ? <AnimatedNumber value={live.bps} format={(v) => speed(v)} /> : "—"} />
               <Stat k="Time left" v={d.status === "downloading" ? eta(d.totalBytes != null ? d.totalBytes - d.downloadedBytes : null, live.bps) : "—"} />
-              <Stat k={d.kind === "http" ? "Connections" : "Type"} v={d.kind === "http" ? `${live.conns} of ${d.connections}` : d.kind === "audio" ? "Audio" : `Video · ${d.kind.toUpperCase()}`} />
+              <Stat k={d.kind === "http" ? "Connections" : d.kind === "torrent" ? "Peers" : "Type"} v={d.kind === "http" ? `${live.conns} of ${d.connections}` : d.kind === "torrent" ? String(live.conns) : d.kind === "audio" ? "Audio" : `Video · ${d.kind.toUpperCase()}`} />
               <Stat k="Resume" v={d.kind !== "http" ? "Yes" : d.resumable ? "Yes" : d.status === "probing" ? "Checking…" : "No"} />
               <Stat k="Save to" v={<span title={d.saveDir}>{d.saveDir.split(/[\\/]/).pop()}</span>} />
             </dl>
@@ -172,6 +175,8 @@ export function DownloadWindow({ id }: { id: number }) {
                     <div className="mt-3">
                       {d.kind === "http" ? (
                         d.totalBytes && live.segments.length > 0 ? <SegmentBars total={d.totalBytes} segments={live.segments} /> : <p className="text-[11px] text-fg-3">Single connection (the server doesn't support splitting this file).</p>
+                      ) : d.kind === "torrent" ? (
+                        <p className="text-[11px] text-fg-3">BitTorrent · {live.conns} peers connected. Gale stops sharing when the download finishes or is paused.</p>
                       ) : (
                         <StageSteps stage={stage} status={d.status} />
                       )}

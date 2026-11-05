@@ -136,6 +136,7 @@ impl Db {
     async fn connect(opts: SqliteConnectOptions, max: u32) -> Result<Self> {
         let pool = SqlitePoolOptions::new().max_connections(max).connect_with(opts).await?;
         sqlx::migrate!("./migrations").run(&pool).await?;
+        add_torrent_kind(&pool).await?;
         Ok(Self { pool })
     }
 
@@ -144,13 +145,13 @@ impl Db {
     }
 
     /// Crash/restart recovery: anything that was mid-transfer becomes paused (resumable) on startup.
-    pub async fn recover_interrupted(&self) -> Result<u64> {
-        let r = sqlx::query(&format!(
-            "UPDATE downloads SET status = 'paused', updated_at = {NOW} WHERE status IN ('probing', 'downloading')"
+    /// Returns the ids, so the app can start them again when "resume automatically" is on.
+    pub async fn recover_interrupted(&self) -> Result<Vec<i64>> {
+        Ok(sqlx::query_scalar(&format!(
+            "UPDATE downloads SET status = 'paused', updated_at = {NOW} WHERE status IN ('probing', 'downloading') RETURNING id"
         ))
-        .execute(&self.pool)
-        .await?;
-        Ok(r.rows_affected())
+        .fetch_all(&self.pool)
+        .await?)
     }
 
     pub async fn insert_download(&self, d: &NewDownload) -> Result<i64> {
@@ -507,6 +508,72 @@ async fn insert_history(tx: &mut sqlx::SqliteConnection, id: i64, outcome: &str)
     Ok(())
 }
 
+/// Adds 'torrent' to `downloads.kind`. SQLite cannot change a CHECK constraint in place, so the table is rebuilt
+/// (https://sqlite.org/lang_altertable.html#otheralter). This is not a sqlx migration because sqlx runs those in a
+/// transaction, where `PRAGMA foreign_keys = OFF` does nothing and the DROP would cascade into segments,
+/// metadata and queue items.
+async fn add_torrent_kind(pool: &SqlitePool) -> Result<()> {
+    let mut c = pool.acquire().await?;
+    let sql: String = sqlx::query_scalar("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'downloads'").fetch_one(&mut *c).await?;
+    if sql.contains("'torrent'") {
+        return Ok(());
+    }
+    sqlx::query("PRAGMA foreign_keys = OFF").execute(&mut *c).await?;
+    let r = async {
+        let mut tx = sqlx::Connection::begin(&mut *c).await?;
+        sqlx::raw_sql(REBUILD_DOWNLOADS).execute(&mut *tx).await?;
+        tx.commit().await
+    }
+    .await;
+    sqlx::query("PRAGMA foreign_keys = ON").execute(&mut *c).await?;
+    Ok(r?)
+}
+
+const REBUILD_DOWNLOADS: &str = r#"
+CREATE TABLE downloads_new (
+    id               INTEGER PRIMARY KEY,
+    url              TEXT    NOT NULL,
+    final_url        TEXT,
+    referrer         TEXT,
+    file_name        TEXT    NOT NULL,
+    save_dir         TEXT    NOT NULL,
+    temp_path        TEXT,
+    final_path       TEXT,
+    mime_type        TEXT,
+    total_bytes      INTEGER,
+    downloaded_bytes INTEGER NOT NULL DEFAULT 0,
+    status           TEXT    NOT NULL DEFAULT 'queued'
+                     CHECK (status IN ('queued','probing','downloading','paused','completed','failed','cancelled','scheduled')),
+    resumable        INTEGER NOT NULL DEFAULT 0 CHECK (resumable IN (0, 1)),
+    connections      INTEGER NOT NULL DEFAULT 8 CHECK (connections BETWEEN 1 AND 32),
+    etag             TEXT,
+    last_modified    TEXT,
+    sha256           TEXT,
+    expected_sha256  TEXT,
+    error_code       TEXT,
+    error_message    TEXT,
+    category_id      INTEGER REFERENCES download_categories(id) ON DELETE SET NULL,
+    proxy_id         INTEGER REFERENCES proxy_profiles(id) ON DELETE SET NULL,
+    source           TEXT    NOT NULL DEFAULT 'manual' CHECK (source IN ('manual','browser','batch','grabber','scheduler')),
+    created_at       TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    started_at       TEXT,
+    completed_at     TEXT,
+    updated_at       TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    kind             TEXT    NOT NULL DEFAULT 'http'
+                     CHECK (kind IN ('http', 'hls', 'dash', 'video', 'audio', 'torrent'))
+);
+INSERT INTO downloads_new SELECT id, url, final_url, referrer, file_name, save_dir, temp_path, final_path, mime_type,
+    total_bytes, downloaded_bytes, status, resumable, connections, etag, last_modified, sha256, expected_sha256,
+    error_code, error_message, category_id, proxy_id, source, created_at, started_at, completed_at, updated_at, kind
+    FROM downloads;
+DROP TABLE downloads;
+ALTER TABLE downloads_new RENAME TO downloads;
+CREATE INDEX idx_downloads_status   ON downloads(status);
+CREATE INDEX idx_downloads_category ON downloads(category_id);
+CREATE INDEX idx_downloads_created  ON downloads(created_at);
+CREATE INDEX idx_downloads_url      ON downloads(url);
+"#;
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -550,7 +617,7 @@ mod tests {
         let db = Db::open_in_memory().await.unwrap();
         let id = db.insert_download(&new("https://h/a")).await.unwrap();
         db.set_status(id, DownloadStatus::Downloading, None).await.unwrap();
-        assert_eq!(db.recover_interrupted().await.unwrap(), 1);
+        assert_eq!(db.recover_interrupted().await.unwrap().len(), 1);
         assert_eq!(db.get_download(id).await.unwrap().status, DownloadStatus::Paused);
     }
 
