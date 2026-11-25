@@ -1,0 +1,42 @@
+# Builds the Linux (.deb, .rpm) and macOS (.dmg) packages and attaches them to a GitHub release.
+# The Windows MSI/setup are built with scripts/installer/build-msi.sh and uploaded by hand; publishing the release
+# then runs this workflow. It can also be started from the Actions tab for an existing tag.
+name: Release packages
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag: { description: "Release tag, for example v0.6.0", required: true }
+permissions:
+  contents: write
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, macos-14]
+    runs-on: ${{ matrix.os }}
+    env:
+      TAG: ${{ github.event.release.tag_name || inputs.tag }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with: { ref: "${{ env.TAG }}" }
+      - uses: pnpm/action-setup@v4
+        with: { version: 10 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.os == 'macos-14' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+      - name: Linux build dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev libdbus-1-dev librsvg2-dev
+      - run: pnpm install --frozen-lockfile
+      - run: (cd browser-extension && pnpm install --frozen-lockfile)
+      - run: cargo test -p gale-core -p gale-nmh -p gale
+      - run: scripts/installer/build-unix.sh
+      - run: gh release upload "$TAG" dist-installer/* --clobber

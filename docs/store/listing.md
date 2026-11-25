@@ -8,7 +8,7 @@ Copy-paste text for every store and download site. Store-specific fields are in 
 |---|---|
 | Product name | Gale Download Manager |
 | Short name | Gale |
-| Version | 0.5.0 |
+| Version | 0.7.0 |
 | Developer / publisher | Muhammad Faizan |
 | Website | https://faizzyhon.com |
 | Source code | https://github.com/faizzyhon/Gale |
@@ -21,7 +21,7 @@ Copy-paste text for every store and download site. Store-specific fields are in 
 | Category | Utilities / Download managers (Chrome Web Store: Productivity → Tools) |
 | Platform | Windows 10 (1809+) and Windows 11, 64-bit |
 | Languages | English |
-| Installer | `Gale_Setup_0.5.0.exe` (or `Gale_0.5.0_x64.msi`), all users (Program Files), asks for administrator approval; updates in place |
+| Installer | `Gale_Setup_0.7.0.exe` (or `Gale_0.7.0_x64.msi`), all users (Program Files), asks for administrator approval; updates in place |
 
 ## One-line summary (≤ 80 characters)
 
@@ -96,16 +96,14 @@ https://github.com/faizzyhon/Gale/releases
 download manager, downloader, download accelerator, resume downloads, multi-connection, video downloader,
 torrent downloader, magnet links, Chrome download, open source, free, Windows 11
 
-## What's new in 0.5.0 (release notes)
+## What's new in 0.7.0 (release notes)
 
-- Torrent downloads: magnet links and .torrent files, from the browser, the clipboard, Add URL or a file on your PC
-- Unfinished downloads resume by themselves when Gale starts; downloads that fail because the connection dropped are
-  retried (Settings → General)
-- The video quality menu in the browser is ready sooner: Gale reads the qualities as soon as a video page opens, or
-  when you point at a streamed video
-- Saved videos are named after the title only, without the video id
-- Videos and audio go to the Video and Music categories
-- The tray speed limit menu now shows a limit changed in Settings
+- AI Models: download models from Hugging Face, pick a GGUF size, every large file checked by SHA-256, save into
+  LM Studio's folder
+- Servers that allow only a few connections are detected and respected
+- Faster recovery when a server keeps dropping the connection
+- Videos: subtitles and chapters inside the file, optional SponsorBlock
+- Clipboard watch (off by default) and six accent colours
 
 ## Developer bio (≤ 300 characters)
 

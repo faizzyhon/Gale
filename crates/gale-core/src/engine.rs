@@ -7,6 +7,7 @@
 //! * bytes are *reserved* under the lock before being written, so work-stealing splits never overlap;
 //! * a file is only reported complete after its size (and optional SHA-256) is verified and it is renamed.
 
+use std::net::IpAddr;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, Mutex};
@@ -44,6 +45,11 @@ pub struct EngineConfig {
     /// Per-download cap in bytes/s; 0 = unlimited.
     pub download_limit_bps: u64,
     pub limits: Limits,
+    /// Network connections (interface names, or local IP addresses) to spread each download's connections over,
+    /// for example Ethernet plus two Wi-Fi adapters. Empty = the system's default route.
+    pub networks: Vec<String>,
+    /// Subtitles, chapters and SponsorBlock for video downloads.
+    pub media_extras: crate::media::MediaExtras,
 }
 
 #[derive(Debug, Clone)]
@@ -82,7 +88,7 @@ impl Default for EngineConfig {
             min_segment: 1024 * 1024,
             max_retries: 6,
             retry_base: Duration::from_millis(500),
-            user_agent: format!("Gale/{} (Windows NT 10.0; Win64; x64)", env!("CARGO_PKG_VERSION")),
+            user_agent: format!("Gale/{} ({})", env!("CARGO_PKG_VERSION"), platform()),
             connect_timeout: Duration::from_secs(15),
             read_timeout: Duration::from_secs(30),
             progress_interval: Duration::from_millis(250),
@@ -90,13 +96,40 @@ impl Default for EngineConfig {
             proxy: None,
             download_limit_bps: 0,
             limits: Limits::default(),
+            networks: Vec::new(),
+            media_extras: Default::default(),
         }
     }
 }
 
+fn platform() -> &'static str {
+    if cfg!(target_os = "windows") {
+        "Windows NT 10.0; Win64; x64"
+    } else if cfg!(target_os = "macos") {
+        "Macintosh; Intel Mac OS X 10_15_7"
+    } else {
+        "X11; Linux x86_64"
+    }
+}
+
 pub fn build_client(cfg: &EngineConfig) -> Result<Client> {
+    build_client_on(cfg, None, None)
+}
+
+/// A client whose connections leave through one network connection: [`local`] is the source address; [`device`]
+/// also pins the interface on Linux and macOS, where the source address alone does not choose the route.
+pub fn build_client_on(cfg: &EngineConfig, local: Option<IpAddr>, device: Option<&str>) -> Result<Client> {
     // TLS verification stays on: there is deliberately no option to disable it.
     let mut b = Client::builder();
+    if let Some(ip) = local {
+        b = b.local_address(ip);
+    }
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
+    if let Some(d) = device {
+        b = b.interface(d);
+    }
+    #[cfg(not(any(target_os = "linux", target_os = "macos")))]
+    let _ = device; // Windows routes by source address (strong host model)
     if let Some(p) = &cfg.proxy {
         let mut proxy = reqwest::Proxy::all(&p.url).map_err(|_| Error::InvalidState(format!("invalid proxy address {}", p.url)))?;
         if let Some(u) = &p.username {
@@ -111,6 +144,60 @@ pub fn build_client(cfg: &EngineConfig) -> Result<Client> {
         .pool_max_idle_per_host(32)
         .redirect(reqwest::redirect::Policy::limited(10))
         .build()?)
+}
+
+/// A network connection Gale can download over.
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Network {
+    /// Stable interface name (what settings store).
+    pub id: String,
+    /// "Wi-Fi", "Ethernet 2"… as the system shows it.
+    pub name: String,
+    pub kind: &'static str,
+    pub address: String,
+}
+
+/// Up, non-loopback interfaces with an IPv4 address and a gateway: the ones that can reach the internet.
+pub fn list_networks() -> Vec<Network> {
+    netdev::get_interfaces()
+        .into_iter()
+        .filter(|i| i.is_up() && !i.is_loopback() && i.gateway.is_some())
+        .filter_map(|i| {
+            let addr = i.ipv4.first()?.addr();
+            let kind = match i.if_type {
+                netdev::interface::types::InterfaceType::Wireless80211 => "Wi-Fi",
+                netdev::interface::types::InterfaceType::Ethernet => "Ethernet",
+                _ if i.name.starts_with("wl") => "Wi-Fi",
+                _ if i.name.starts_with("en") || i.name.starts_with("eth") => "Ethernet",
+                _ => "Other",
+            };
+            Some(Network { name: i.friendly_name.clone().unwrap_or_else(|| i.name.clone()), id: i.name, kind, address: addr.to_string() })
+        })
+        .collect()
+}
+
+/// One client per chosen network that is connected right now; the default client when none is chosen or none is up.
+fn clients_for(cfg: &EngineConfig, default: &Client) -> Vec<Client> {
+    if cfg.networks.is_empty() {
+        return vec![default.clone()];
+    }
+    let ifaces = netdev::get_interfaces();
+    let out: Vec<Client> = cfg
+        .networks
+        .iter()
+        .filter_map(|n| {
+            let (ip, dev) = match n.parse::<IpAddr>() {
+                Ok(ip) => (ip, None),
+                Err(_) => {
+                    let i = ifaces.iter().find(|i| &i.name == n && i.is_up())?;
+                    (IpAddr::V4(i.ipv4.first()?.addr()), Some(i.name.as_str()))
+                }
+            };
+            build_client_on(cfg, Some(ip), dev).map_err(|e| tracing::warn!(network = %n, error = %e, "network not usable")).ok()
+        })
+        .collect();
+    if out.is_empty() { vec![default.clone()] } else { out }
 }
 
 /// Extra request headers (cookies, auth, referrer) – held in memory only, never persisted or logged.
@@ -128,6 +215,27 @@ impl RequestHeaders {
         // Compressed responses make byte ranges meaningless.
         m.insert(header::ACCEPT_ENCODING, HeaderValue::from_static("identity"));
         m
+    }
+
+    /// Without cookies and sign-in headers: for when a download is redirected to another site.
+    pub fn without_credentials(&self) -> Self {
+        let secret = |k: &str| ["authorization", "cookie", "proxy-authorization"].contains(&k.to_ascii_lowercase().as_str());
+        Self(self.0.iter().filter(|(k, _)| !secret(k)).cloned().collect())
+    }
+}
+
+/// Same site for credentials: the same host, or hosts sharing their registrable part (cdn.example.com and
+/// example.com; but not example.co.uk and other.co.uk).
+pub fn same_site(a: &Url, b: &Url) -> bool {
+    fn site(h: &str) -> String {
+        let labels: Vec<&str> = h.trim_end_matches('.').split('.').collect();
+        // Two-letter country code under a short second level (co.uk, com.pk, com.sa): keep three labels.
+        let n = if labels.len() >= 3 && labels[labels.len() - 1].len() == 2 && labels[labels.len() - 2].len() <= 3 { 3 } else { 2 };
+        labels[labels.len().saturating_sub(n)..].join(".").to_ascii_lowercase()
+    }
+    match (a.host_str(), b.host_str()) {
+        (Some(x), Some(y)) => x.eq_ignore_ascii_case(y) || (x.parse::<IpAddr>().is_err() && y.parse::<IpAddr>().is_err() && site(x) == site(y)),
+        _ => false,
     }
 }
 
@@ -302,7 +410,35 @@ struct Slot {
 struct Shared {
     slots: Mutex<Vec<Slot>>,
     active: AtomicU32,
+    /// Workers still running; the last one never steps back for a busy server.
+    workers: AtomicU32,
     min_segment: u64,
+}
+
+/// Connections each server (host:port) accepted before it started refusing more, learned while Gale runs.
+// shortcut: kept in memory only, so it is learned again after a restart; persist it if that turns out to be slow.
+static HOST_LIMITS: std::sync::LazyLock<Mutex<std::collections::HashMap<String, usize>>> = std::sync::LazyLock::new(Default::default);
+
+fn host_key(u: &url::Url) -> String {
+    format!("{}:{}", u.host_str().unwrap_or_default(), u.port_or_known_default().unwrap_or(0))
+}
+
+/// How many connections this server accepted at most, if it refused more earlier.
+pub fn learned_limit(u: &url::Url) -> Option<usize> {
+    HOST_LIMITS.lock().unwrap().get(&host_key(u)).copied()
+}
+
+fn learn_limit(u: &url::Url, accepted: usize) {
+    let mut m = HOST_LIMITS.lock().unwrap();
+    let e = m.entry(host_key(u)).or_insert(accepted.max(1));
+    *e = (*e).min(accepted.max(1));
+}
+
+struct WorkerGuard<'a>(&'a AtomicU32);
+impl Drop for WorkerGuard<'_> {
+    fn drop(&mut self) {
+        self.0.fetch_sub(1, Ordering::Relaxed);
+    }
 }
 
 impl Shared {
@@ -379,6 +515,7 @@ pub async fn run(
     let shared = Arc::new(Shared {
         slots: Mutex::new(segments.into_iter().map(|seg| Slot { reserved: seg.written, seg, claimed: false }).collect()),
         active: AtomicU32::new(0),
+        workers: AtomicU32::new(0),
         min_segment: cfg.min_segment,
     });
     let workers_cancel = cancel.child_token();
@@ -415,12 +552,16 @@ pub async fn run(
         cfg.limits.local = Some(RateLimiter::new(cfg.download_limit_bps));
     }
     let cfg = &cfg;
-    let n_workers = if p.ranges { cfg.connections.clamp(1, 32) as usize } else { 1 };
+    // A server that refused extra connections before gets only what it accepted.
+    let n_workers = if p.ranges { (cfg.connections.clamp(1, 32) as usize).min(learned_limit(&p.final_url).unwrap_or(32)) } else { 1 };
+    shared.workers.store(n_workers as u32, Ordering::Relaxed);
+    // Connections take turns over the chosen networks; work stealing gives the faster network more of the file.
+    let clients = Arc::new(clients_for(cfg, client));
     let mut tasks = tokio::task::JoinSet::new();
-    for _ in 0..n_workers {
-        let (client, cfg, shared, token) = (client.clone(), cfg.clone(), shared.clone(), workers_cancel.clone());
+    for k in 0..n_workers {
+        let (clients, cfg, shared, token) = (clients.clone(), cfg.clone(), shared.clone(), workers_cancel.clone());
         let (probe, headers, path) = (job.probe.clone(), job.headers.to_map(), job.temp_path.clone());
-        tasks.spawn(async move { worker(&client, &cfg, &probe, &headers, &path, &shared, &token).await });
+        tasks.spawn(async move { worker(&clients, k, &cfg, &probe, &headers, &path, &shared, &token).await });
     }
 
     let mut first_err = None;
@@ -509,8 +650,10 @@ pub async fn sha256_file(path: &Path) -> Result<String> {
     Ok(hex::encode(h.finalize()))
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn worker(
-    client: &Client,
+    clients: &[Client],
+    k: usize,
     cfg: &EngineConfig,
     p: &ProbeResult,
     headers: &HeaderMap,
@@ -518,6 +661,7 @@ async fn worker(
     shared: &Shared,
     cancel: &CancellationToken,
 ) -> Result<()> {
+    let _alive = WorkerGuard(&shared.workers);
     while let Some(i) = shared.claim(p.ranges) {
         let mut attempt = 0;
         loop {
@@ -525,8 +669,29 @@ async fn worker(
                 shared.release(i);
                 return Ok(());
             }
-            match fetch_segment(client, cfg, p, headers, path, shared, i, cancel).await {
+            // A retry moves to the next network, so one dropped connection (Wi-Fi out of range) doesn't stall the part.
+            let client = &clients[(k + attempt as usize) % clients.len()];
+            let before = shared.slots.lock().unwrap()[i].seg.written;
+            let result = fetch_segment(client, cfg, p, headers, path, shared, i, cancel).await;
+            // A connection that dropped after delivering data is a working server with a bad line, not a failing one:
+            // reconnect at once and start counting failures again.
+            let progressed = shared.slots.lock().unwrap()[i].seg.written > before;
+            match result {
+                Err(e) if e.is_transient() && progressed => {
+                    tracing::debug!(segment = i, error = %e, "connection dropped after progress; reconnecting");
+                    attempt = 0;
+                }
                 Ok(()) => break,
+                // "Too busy" while other connections to the same server are working: the server limits connections
+                // per client. This connection steps back (its part goes to the others) and the limit is remembered.
+                Err(Error::Http { status: 429 | 503 })
+                    if shared.active.load(Ordering::Relaxed) >= 1 && shared.workers.load(Ordering::Relaxed) > 1 =>
+                {
+                    learn_limit(&p.final_url, shared.active.load(Ordering::Relaxed) as usize);
+                    shared.release(i);
+                    tracing::debug!(segment = i, "server refused another connection; continuing with fewer");
+                    return Ok(());
+                }
                 Err(e) if e.is_transient() && attempt < cfg.max_retries => {
                     let wait = backoff(cfg.retry_base, attempt);
                     tracing::debug!(segment = i, attempt, ?wait, error = %e, "retrying segment");
@@ -666,6 +831,18 @@ impl Drop for ActiveGuard<'_> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn credentials_stay_with_their_site() {
+        let u = |s: &str| Url::parse(s).unwrap();
+        assert!(same_site(&u("https://example.com/a"), &u("https://cdn.example.com/b")));
+        assert!(same_site(&u("https://dl.site.com.pk/a"), &u("https://site.com.pk/b")));
+        assert!(!same_site(&u("https://huggingface.co/m"), &u("https://cas-bridge.xethub.hf.co/x")));
+        assert!(!same_site(&u("https://a.co.uk/"), &u("https://b.co.uk/")));
+        assert!(!same_site(&u("http://10.0.0.1/"), &u("http://10.0.0.2/")));
+        let h = RequestHeaders(vec![("Cookie".into(), "s=1".into()), ("authorization".into(), "Bearer x".into()), ("Referer".into(), "r".into())]);
+        assert_eq!(h.without_credentials().0, vec![("Referer".to_string(), "r".to_string())]);
+    }
+
     use super::*;
 
     #[test]
@@ -721,6 +898,7 @@ mod tests {
                 claimed: true,
             }]),
             active: AtomicU32::new(0),
+            workers: AtomicU32::new(0),
             min_segment: 10,
         };
         let i = shared.claim(true).unwrap();
@@ -735,6 +913,7 @@ mod tests {
         let shared = Shared {
             slots: Mutex::new(vec![Slot { seg: SegmentState { index: 0, start: 0, end: Some(100), written: 85 }, reserved: 85, claimed: true }]),
             active: AtomicU32::new(0),
+            workers: AtomicU32::new(0),
             min_segment: 10,
         };
         assert!(shared.claim(true).is_none());

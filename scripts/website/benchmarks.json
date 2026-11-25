@@ -1,0 +1,159 @@
+{
+ "date": "2026-11-26",
+ "machine": "Linux cloud VM, 2 CPUs, 7 GB RAM; client and server on the same machine (localhost)",
+ "aria2": "1.37.0",
+ "curl": "8.5.0",
+ "scenarios": [
+  {
+   "id": "A",
+   "title": "256 MiB, server slows each connection to 4 MiB/s",
+   "detail": "What many CDNs and mirrors do; more connections, more speed.",
+   "verdict": "14\u00d7 faster than one connection",
+   "results": {
+    "gale": {
+     "ok": true,
+     "seconds": 4.5,
+     "mibps": 57.0,
+     "runs": [
+      56.8,
+      57.0,
+      57.0
+     ]
+    },
+    "aria2c": {
+     "ok": true,
+     "seconds": 4.3,
+     "mibps": 59.5,
+     "runs": [
+      59.8,
+      56.8,
+      59.5
+     ]
+    },
+    "curl": {
+     "ok": true,
+     "seconds": 64.0,
+     "mibps": 4.0,
+     "runs": [
+      4.0,
+      4.0,
+      4.0
+     ]
+    }
+   }
+  },
+  {
+   "id": "B",
+   "title": "1 GiB, no limits, local server",
+   "detail": "Raw speed on this machine; one connection over loopback is the fastest path.",
+   "verdict": "fastest: curl",
+   "results": {
+    "gale": {
+     "ok": true,
+     "seconds": 2.8,
+     "mibps": 370.1,
+     "runs": [
+      357.8,
+      412.2,
+      370.1
+     ]
+    },
+    "aria2c": {
+     "ok": true,
+     "seconds": 2.6,
+     "mibps": 388.1,
+     "runs": [
+      443.0,
+      388.1,
+      381.5
+     ]
+    },
+    "curl": {
+     "ok": true,
+     "seconds": 0.9,
+     "mibps": 1155.8,
+     "runs": [
+      1288.8,
+      1120.6,
+      1155.8
+     ]
+    }
+   }
+  },
+  {
+   "id": "C",
+   "title": "128 MiB, server allows 4 connections at 2 MiB/s",
+   "detail": "A fifth connection gets HTTP 503. The most possible is 8 MiB/s.",
+   "verdict": "both find the limit",
+   "results": {
+    "gale": {
+     "ok": true,
+     "seconds": 16.3,
+     "mibps": 7.9,
+     "runs": [
+      7.9,
+      7.9,
+      7.9
+     ]
+    },
+    "aria2c": {
+     "ok": true,
+     "seconds": 16.7,
+     "mibps": 7.7,
+     "runs": [
+      7.7,
+      7.7,
+      7.7
+     ]
+    },
+    "curl": {
+     "ok": true,
+     "seconds": 64.0,
+     "mibps": 2.0,
+     "runs": [
+      2.0,
+      2.0,
+      2.0
+     ]
+    }
+   }
+  },
+  {
+   "id": "D",
+   "title": "256 MiB, unreliable server",
+   "detail": "Each 64 KiB has a 2% chance that the connection drops.",
+   "verdict": "fastest: aria2c",
+   "results": {
+    "gale": {
+     "ok": true,
+     "seconds": 2.2,
+     "mibps": 117.6,
+     "runs": [
+      117.6,
+      69.2,
+      121.8
+     ]
+    },
+    "aria2c": {
+     "ok": true,
+     "seconds": 0.7,
+     "mibps": 352.4,
+     "runs": [
+      353.2,
+      339.7,
+      352.4
+     ]
+    },
+    "curl": {
+     "ok": false,
+     "note": "gave up (connection dropped, error 18)",
+     "runs": [
+      "fail(exit 18: curl: (52) Empty reply from server curl: (18) transfer closed with 259063808 bytes remaining to read curl: (18) transfer)",
+      "fail(exit 52: curl: (18) transfer closed with 257884160 bytes remaining to read curl: (18) transfer closed with 267059200 bytes remain)",
+      "fail(exit 18: curl: (18) transfer closed with 267976704 bytes remaining to read curl: (52) Empty reply from server curl: (18) transfer)"
+     ]
+    }
+   }
+  }
+ ]
+}

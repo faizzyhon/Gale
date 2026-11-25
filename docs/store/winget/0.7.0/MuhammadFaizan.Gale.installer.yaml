@@ -1,0 +1,24 @@
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.installer.1.6.0.schema.json
+PackageIdentifier: MuhammadFaizan.Gale
+PackageVersion: 0.7.0
+MinimumOSVersion: 10.0.17763.0
+InstallerType: msi
+Scope: machine
+ElevationRequirement: elevatesSelf
+InstallModes:
+  - interactive
+  - silent
+  - silentWithProgress
+UpgradeBehavior: install
+ProductCode: '{A040803B-1D7C-41EB-8C6D-967271F2D7BD}'
+AppsAndFeaturesEntries:
+  - DisplayName: Gale Download Manager
+    Publisher: Muhammad Faizan
+    ProductCode: '{A040803B-1D7C-41EB-8C6D-967271F2D7BD}'
+    UpgradeCode: '{832F8633-BF40-4C8B-A0DD-40BAAD025CD2}'
+Installers:
+  - Architecture: x64
+    InstallerUrl: https://github.com/faizzyhon/Gale/releases/download/v0.7.0/Gale_0.7.0_x64.msi
+    InstallerSha256: 29C225C2A609202D121E301240FC7A3833AE85321BD435C395ECE5CEF6F34A00
+ManifestType: installer
+ManifestVersion: 1.6.0

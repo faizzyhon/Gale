@@ -47,8 +47,9 @@ or receive the user's cookies. It runs as the signed-in user, never elevated.
 
 ## Known limits / follow-ups
 
-1. Release binaries are **not code-signed** — SmartScreen will warn on first run until signed with an
-   OV/EV certificate.
+1. Release binaries are **not code-signed** yet — SmartScreen warns until they are. The build signs everything when
+   given a certificate (`SIGN_PFX` in `build-msi.sh`, or `sign-windows.cmd` for token/cloud certificates); see
+   `docs/store/microsoft-store.md`.
 2. The extension is installed unpacked (Developer mode). Chrome on Windows only auto-installs
    Web Store or policy-managed extensions; publishing to the Web Store removes this step.
 3. Cookies for a browser download are lost if Gale restarts before that download finishes; the

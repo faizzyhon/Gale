@@ -54,6 +54,44 @@ const PAYPAL_URL = "";
       byId.forEach((_, id) => { const el = document.getElementById(id); if (el) io.observe(el); });
     }
 
+    // Downloads: mark the visitor's system and point the main button at its recommended file.
+    const ua = navigator.userAgent;
+    const os = /Windows/i.test(ua) ? "windows" : /Mac OS X|Macintosh/i.test(ua) && !/iPhone|iPad/i.test(ua) ? "mac" : /Linux|X11/i.test(ua) && !/Android/i.test(ua) ? "linux" : null;
+    if (os) {
+      const card = document.querySelector(`[data-os-card="${os}"]`);
+      card?.classList.add("mine");
+      const first = card?.querySelector(".file-row");
+      const main = document.getElementById("dl-main");
+      if (first && main) {
+        main.href = first.href;
+        main.querySelector("span").textContent = "Download for " + { windows: "Windows", mac: "macOS", linux: "Linux" }[os];
+        const meta = document.getElementById("dl-meta");
+        const small = first.querySelector("small");
+        if (meta && small) meta.innerHTML = `${small.textContent} · <a href="#download">Other systems</a>`;
+      }
+      document.querySelectorAll("[data-tabs]").forEach((t) => t.querySelector(`[data-tab="${os}"]`)?.click());
+    }
+
+    // Tabs (install guide).
+    document.querySelectorAll("[data-tabs]").forEach((box) => {
+      const tabs = [...box.querySelectorAll("[data-tab]")];
+      tabs.forEach((tab) => tab.addEventListener("click", () => {
+        tabs.forEach((t) => t.setAttribute("aria-selected", String(t === tab)));
+        box.querySelectorAll("[data-panel]").forEach((p) => (p.hidden = p.dataset.panel !== tab.dataset.tab));
+      }));
+    });
+
+    // Copy buttons next to commands.
+    document.querySelectorAll("[data-copy]").forEach((btn) => btn.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(btn.dataset.copy);
+        btn.textContent = "Copied";
+      } catch {
+        btn.textContent = "Select and copy";
+      }
+      setTimeout(() => (btn.textContent = "Copy"), 1600);
+    }));
+
     // Home: eight connections filling at their own pace, like Gale's per-connection view.
     const bars = [...document.querySelectorAll(".strip-bars i")];
     const read = document.getElementById("strip-read");

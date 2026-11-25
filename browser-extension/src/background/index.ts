@@ -98,16 +98,21 @@ async function sendDownload(url: string, opts: { filename?: string; referrer?: s
 
 const recentlySent = new Map<string, number>();
 
-chrome.downloads.onDeterminingFilename.addListener((item, suggest) => {
-  void handleDownload(item).finally(() => {
-    try {
-      suggest();
-    } catch {
-      /* already cancelled */
-    }
+if (chrome.downloads.onDeterminingFilename) {
+  chrome.downloads.onDeterminingFilename.addListener((item, suggest) => {
+    void handleDownload(item).finally(() => {
+      try {
+        suggest();
+      } catch {
+        /* already cancelled */
+      }
+    });
+    return true; // we call suggest asynchronously
   });
-  return true; // we call suggest asynchronously
-});
+} else {
+  // Firefox has no onDeterminingFilename: take the download as soon as it is created (size may still be unknown).
+  chrome.downloads.onCreated.addListener((item) => void handleDownload(item));
+}
 
 async function handleDownload(item: chrome.downloads.DownloadItem): Promise<void> {
   if (item.byExtensionId === chrome.runtime.id) return; // our own fallbacks

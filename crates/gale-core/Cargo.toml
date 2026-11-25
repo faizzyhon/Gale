@@ -22,6 +22,7 @@ url.workspace = true
 chrono.workspace = true
 sha2.workspace = true
 hex.workspace = true
+netdev = { version = "0.47", default-features = false, features = ["gateway"] }
 rand.workspace = true
 percent-encoding = "2"
 scraper = "0.29"

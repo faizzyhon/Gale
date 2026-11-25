@@ -1,0 +1,9 @@
+{
+  "mainBinaryName": "gale",
+  "bundle": {
+    "targets": ["app", "dmg"],
+    "shortDescription": "Free, open-source download manager",
+    "externalBin": ["binaries/gale-nmh"],
+    "macOS": { "minimumSystemVersion": "11.0" }
+  }
+}

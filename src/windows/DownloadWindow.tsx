@@ -50,7 +50,7 @@ export function DownloadWindow({ id }: { id: number }) {
   const win = getCurrentWindow();
 
   useEffect(() => {
-    api.getSettings().then((s) => (setSettings(s), applyTheme(s.theme)), () => {});
+    api.getSettings().then((s) => (setSettings(s), applyTheme(s.theme, s.accent)), () => {});
     api.getDownload(id).then(setD, (e) => setError(errorMessage(e)));
     api.segments(id).then((segments) => setLive((l) => ({ ...l, segments })), () => {});
     const subs = [

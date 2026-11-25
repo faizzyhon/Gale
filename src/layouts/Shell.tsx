@@ -2,6 +2,7 @@ import {
   AppWindow,
   Archive,
   Bell,
+  Cpu,
   Globe,
   ListOrdered,
   Play,
@@ -110,6 +111,7 @@ export function Shell({ view, onNavigate, query, onQuery, onAdd, onBatch, onVide
           <div className="my-2 h-px bg-line" />
           {navButton("queues", "Queues & Scheduler", ListOrdered, view.page === "queues", () => onNavigate({ page: "queues" }))}
           {navButton("grabber", "Site Grabber", Globe, view.page === "grabber", () => onNavigate({ page: "grabber" }))}
+          {navButton("models", "AI Models", Cpu, view.page === "models", () => onNavigate({ page: "models" }))}
           {navButton("history", "Download History", History, view.page === "history", () => onNavigate({ page: "history" }))}
         </nav>
         {navButton("about", "About Gale", Info, view.page === "about", () => onNavigate({ page: "about" }))}

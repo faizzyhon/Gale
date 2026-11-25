@@ -1,0 +1,12 @@
+{
+  "mainBinaryName": "gale",
+  "bundle": {
+    "targets": ["deb", "rpm"],
+    "shortDescription": "Free, open-source download manager",
+    "externalBin": ["binaries/gale-nmh"],
+    "linux": {
+      "deb": { "recommends": ["ffmpeg"] },
+      "rpm": { "recommends": ["ffmpeg"] }
+    }
+  }
+}

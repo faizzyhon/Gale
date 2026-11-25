@@ -1,7 +1,7 @@
 # Privacy Policy — Gale Download Manager
 
-**Effective date:** 5 November 2026
-**Applies to:** the Gale Download Manager app for Windows and the Gale browser extension for Chrome and Edge
+**Effective date:** 26 November 2026
+**Applies to:** the Gale Download Manager app for Windows, Linux and macOS and the Gale browser extension for Chrome and Edge
 **Developer:** Muhammad Faizan — [faizzyhon.com](https://faizzyhon.com) — faizzyhon@gmail.com
 
 ## Summary
@@ -11,8 +11,9 @@ does not run any server for Gale and does not receive, collect, sell or share an
 
 ## What the app stores on your computer
 
-To work, Gale keeps the following in a local database and settings file in your Windows user profile
-(`%APPDATA%\com.faizzyhon.gale`):
+To work, Gale keeps the following in a local database and settings file in your user profile
+(Windows: `%APPDATA%\com.faizzyhon.gale`; Linux: `~/.local/share/com.faizzyhon.gale`; macOS:
+`~/Library/Application Support/com.faizzyhon.gale`):
 
 - your download list and history: web address, file name, size, save folder, status, dates
 - your settings, categories, queues, schedules and site rules
@@ -22,7 +23,8 @@ To work, Gale keeps the following in a local database and settings file in your 
 Diagnostic logs are written to `%LOCALAPPDATA%\com.faizzyhon.gale\logs`. They contain download ids, error codes
 and error messages only, never cookies or request headers.
 
-If you set a proxy password, it is saved in **Windows Credential Manager**, not in the database or settings file.
+If you set a proxy password, it is saved in the system keychain (**Windows Credential Manager**, the **macOS Keychain**, or the
+Secret Service on Linux, such as GNOME Keyring or KWallet), not in the database or settings file.
 
 None of this leaves your computer unless you copy it yourself (for example with Settings → Advanced → Back up).
 
@@ -45,8 +47,9 @@ anything to the developer or to any other server.
 - **Magnet links:** when you click a magnet link, its address and the page address are passed to Gale.
 - **Links you choose:** "Download all links" and "Download selected links" read the links on the current page only
   when you pick that menu item.
-- **Settings:** the extension's own settings are saved with Chrome's storage. If you use Chrome Sync, Chrome syncs them
-  with your Google account like any other extension setting.
+- **Settings:** the extension's own settings are saved with the browser's storage. If you use Chrome Sync, Chrome
+  syncs them with your Google account like any other extension setting. The Firefox version works the same way and
+  does not collect data (it declares this to Firefox as "no data collected").
 
 ## Network connections
 
@@ -58,9 +61,45 @@ Gale connects only to:
   address and which torrent you are downloading, and receive pieces of it from Gale while it downloads; this is how
   BitTorrent works. Gale stops sharing when the download finishes or is paused
 - your proxy server, if you set one
-- GitHub, only when you click "Update yt-dlp" in Settings, to fetch the latest yt-dlp release
+- GitHub, when you click "Update yt-dlp" in Settings (on Linux and macOS also the first time a video is
+  downloaded), to fetch the latest yt-dlp release
+- GitHub, once each time Gale starts and when you click "Check for updates", to read the version number of the
+  latest Gale release (`api.github.com/repos/faizzyhon/Gale/releases/latest`). No information about you or your
+  downloads is sent; GitHub sees your IP address like any website. Turn this off in Settings → General
+  ("Tell me when a new version of Gale is available")
 
-Gale does not check for updates by itself and does not contact the developer.
+- Hugging Face (`huggingface.co`, or `hf-mirror.com` if you choose the mirror), only when you use the AI Models
+  page: your search words or the model name. If you saved an access token, it is sent to Hugging Face with those
+  requests and nowhere else; the token is kept in the system keychain, not in Gale's files
+- SponsorBlock (`sponsor.ajay.app`), only if you turn on "Remove sponsor segments": the id of the YouTube video you
+  download, to get its sponsor segments
+
+If you choose several networks in Settings → Network, Gale opens connections to the download server through each of
+them; the server then sees each network's IP address.
+
+When a download is redirected to a different site, Gale does not send that site the cookies or sign-in headers that
+belong to the first one.
+
+**Clipboard:** with "Watch the clipboard for download links" on (Settings → General; off by default), Gale reads the
+text on the clipboard about once a second while it runs, to notice copied download links. The text is not stored or
+sent anywhere. With the setting off, Gale does not read the clipboard.
+
+Gale does not contact the developer.
+
+## Gale for Android
+
+The Android app follows the same rules: no account, no analytics, no ads, nothing sent to the developer.
+
+- The download list and settings are stored in the app's private storage; finished files go to Download/Gale,
+  Movies/Gale, Music/Gale and Pictures/Gale.
+- If you sign in to Instagram (only needed for stories), the session cookies are kept in the app's private storage
+  and used only to download what you ask for. Sign out in Settings removes them.
+- The built-in browser keeps cookies and site data like any browser, on the phone only. When it hands a download to
+  Gale, the site's cookies are read at the moment Gale connects and are not saved with the download. Settings →
+  Browser → "Clear cookies and site data" removes them. Its ad blocker uses a list of domains bundled with the app;
+  no browsing history is sent anywhere.
+- Network connections: the servers of the files and pages you download, torrent peers for torrents, and (GitHub
+  version only) GitHub every few days to update yt-dlp.
 
 ## Your control
 

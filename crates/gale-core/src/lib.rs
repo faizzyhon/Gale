@@ -6,6 +6,7 @@ pub mod categories;
 pub mod db;
 pub mod engine;
 pub mod grabber;
+pub mod hf;
 pub mod ipc;
 pub mod limits;
 pub mod manager;
@@ -47,7 +48,7 @@ pub enum Error {
     InvalidState(String),
     #[error("{0}")]
     Media(String),
-    #[error("{0} was not found; reinstall Gale or install it and add it to PATH")]
+    #[error("{0} was not found; {hint}", hint = media::TOOL_HINT)]
     ToolMissing(String),
     #[error("{0}")]
     Torrent(String),

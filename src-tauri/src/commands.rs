@@ -148,6 +148,56 @@ pub fn open_link(app: AppHandle, name: String) -> Result<(), CommandError> {
     app.opener().open_url(url, None::<&str>).map_err(|e| err("open_failed", e.to_string()))
 }
 
+/// Opens a release page or installer link, only from Gale's own GitHub repository.
+#[tauri::command]
+pub fn open_release_url(app: AppHandle, url: String) -> Result<(), CommandError> {
+    if !url.starts_with("https://github.com/faizzyhon/Gale/") || url.contains("..") {
+        return Err(err("invalid", "not a Gale release link"));
+    }
+    app.opener().open_url(url, None::<&str>).map_err(|e| err("open_failed", e.to_string()))
+}
+
+#[tauri::command]
+pub async fn check_update() -> Result<crate::update::UpdateInfo, CommandError> {
+    crate::update::check().await.map_err(|e| err("update", e))
+}
+
+/// Downloads and checks the installer, starts it, and closes Gale so it can be replaced.
+#[tauri::command]
+pub async fn install_update(app: AppHandle, installer: String) -> Result<(), CommandError> {
+    if crate::startup::is_packaged() {
+        return Err(err("update", "the Microsoft Store updates this copy of Gale"));
+    }
+    let msi = crate::update::download(&installer).await.map_err(|e| err("update", e))?;
+    crate::update::launch(&msi).map_err(|e| err("update", e))?;
+    let st = app.state::<AppState>();
+    st.manager.shutdown().await; // save progress before the installer closes Gale
+    app.exit(0);
+    Ok(())
+}
+
+#[tauri::command]
+pub fn list_networks() -> Vec<gale_core::engine::Network> {
+    gale_core::engine::list_networks()
+}
+
+/// Points a broken download at a new address it was given (pasted by the user). Progress is kept.
+#[tauri::command]
+pub async fn refresh_url(state: State<'_, AppState>, id: i64, url: String) -> Result<(), CommandError> {
+    state.manager.refresh_url(id, &url, None, true).await?;
+    Ok(())
+}
+
+/// Opens the page the download came from; the next download the browser extension catches with the same size
+/// becomes this download's new address (with the browser's fresh cookies). Waits 5 minutes at most.
+#[tauri::command]
+pub async fn refresh_from_browser(app: AppHandle, state: State<'_, AppState>, id: i64) -> Result<(), CommandError> {
+    let d = state.manager.db().get_download(id).await?;
+    let page = d.referrer.as_deref().filter(|r| gale_core::security::validate_url(r).is_ok()).unwrap_or(&d.url).to_string();
+    *state.refreshing.lock().unwrap() = Some((id, std::time::Instant::now()));
+    app.opener().open_url(page, None::<&str>).map_err(|e| err("open_failed", e.to_string()))
+}
+
 #[cfg(test)]
 mod link_tests {
     #[test]
@@ -282,11 +332,23 @@ pub struct SettingsView {
     #[serde(flatten)]
     settings: AppSettings,
     has_proxy_password: bool,
+    has_hf_token: bool,
+    /// Store (MSIX) install: "start with Windows" is set in Windows Settings → Apps → Startup instead.
+    packaged: bool,
+}
+
+fn view(s: AppSettings) -> SettingsView {
+    SettingsView {
+        settings: s,
+        has_proxy_password: settings::has_proxy_password(),
+        has_hf_token: settings::hf_token().is_some(),
+        packaged: crate::startup::is_packaged(),
+    }
 }
 
 #[tauri::command]
 pub async fn get_settings(state: State<'_, AppState>) -> Res<SettingsView> {
-    Ok(SettingsView { settings: state.settings(), has_proxy_password: settings::has_proxy_password() })
+    Ok(view(state.settings()))
 }
 
 #[tauri::command]
@@ -298,7 +360,7 @@ pub async fn save_settings(app: AppHandle, state: State<'_, AppState>, settings:
     if s.global_limit_kbps != old.global_limit_kbps {
         crate::sync_tray_limit(&app, s.global_limit_kbps);
     }
-    if s.start_with_windows != old.start_with_windows {
+    if s.start_with_windows != old.start_with_windows && !crate::startup::is_packaged() {
         let al = app.autolaunch();
         let r = if s.start_with_windows { al.enable() } else { al.disable() };
         r.map_err(|e| err("autostart", format!("could not change startup setting: {e}")))?;
@@ -308,7 +370,7 @@ pub async fn save_settings(app: AppHandle, state: State<'_, AppState>, settings:
     }
     state.manager.db().set_setting(settings::KEY, &s).await?;
     state.set_settings(s.clone());
-    Ok(SettingsView { settings: s, has_proxy_password: settings::has_proxy_password() })
+    Ok(view(s))
 }
 
 /// Password goes straight to Windows Credential Manager; it never touches SQLite or logs.
@@ -351,7 +413,7 @@ pub async fn reset_settings(state: State<'_, AppState>) -> Res<SettingsView> {
     state.manager.reconfigure(s.engine_config(&state.global, &state.hosts))?;
     state.manager.db().set_setting(settings::KEY, &s).await?;
     state.set_settings(s.clone());
-    Ok(SettingsView { settings: s, has_proxy_password: settings::has_proxy_password() })
+    Ok(view(s))
 }
 
 #[tauri::command]
@@ -542,9 +604,116 @@ pub async fn media_tools_info(state: State<'_, AppState>) -> Res<MediaToolsInfo>
 pub async fn update_ytdlp(app: AppHandle, state: State<'_, AppState>) -> Res<String> {
     // Per-user copy: the installed one in Program Files is not writable without admin rights.
     let dir = app.path().app_local_data_dir().map_err(|e| err("io", e.to_string()))?.join("tools");
+    // Linux/macOS have no bundled copy: fetch yt-dlp itself when it is missing.
+    #[cfg(not(windows))]
+    if state.manager.media_tools().is_err() {
+        gale_core::media::install_ytdlp(&dir).await?;
+        let exe_dir = std::env::current_exe().ok().and_then(|p| p.parent().map(|d| d.to_path_buf()));
+        let tools = gale_core::media::MediaTools::locate(exe_dir.as_deref(), Some(&dir))?;
+        state.manager.set_media_tools(Some(tools));
+        return Ok("yt-dlp installed".into());
+    }
     let mut tools = state.manager.media_tools()?;
     let (out, path) = tools.update_ytdlp(&dir).await?;
     tools.ytdlp = path;
     state.manager.set_media_tools(Some(tools));
     Ok(out.trim().to_string())
+}
+
+// ---------------------------------------------------------------------------------------------
+// AI models (Hugging Face)
+
+fn hf_client() -> Res<reqwest::Client> {
+    reqwest::Client::builder()
+        .user_agent(concat!("Gale/", env!("CARGO_PKG_VERSION")))
+        .timeout(std::time::Duration::from_secs(30))
+        .build()
+        .map_err(|e| err("network", e.to_string()))
+}
+
+#[tauri::command]
+pub async fn hf_search(state: State<'_, AppState>, query: String) -> Res<Vec<gale_core::hf::SearchHit>> {
+    let q = query.trim();
+    if q.is_empty() || q.len() > 200 {
+        return Ok(vec![]);
+    }
+    let s = state.settings();
+    Ok(gale_core::hf::search(&hf_client()?, &s.hf_endpoint, q, settings::hf_token().as_deref()).await?)
+}
+
+/// `input`: a model name (org/name) or any huggingface.co link to it.
+#[tauri::command]
+pub async fn hf_list(state: State<'_, AppState>, input: String) -> Res<gale_core::hf::ModelInfo> {
+    let (repo, rev) = gale_core::hf::parse_repo(&input).ok_or_else(|| err("invalid_model", "Type a model name like Qwen/Qwen3-8B-GGUF, or paste its link."))?;
+    let s = state.settings();
+    Ok(gale_core::hf::list(&hf_client()?, &s.hf_endpoint, &repo, &rev, settings::hf_token().as_deref()).await?)
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelFolders {
+    /// <download folder>/Models
+    downloads: String,
+    /// LM Studio's models folder, when LM Studio is installed.
+    lm_studio: Option<String>,
+}
+
+#[tauri::command]
+pub async fn hf_folders(state: State<'_, AppState>) -> Res<ModelFolders> {
+    let s = state.settings();
+    Ok(ModelFolders {
+        downloads: Path::new(&s.download_dir).join("Models").to_string_lossy().into_owned(),
+        lm_studio: gale_core::hf::lm_studio_dir().map(|p| p.to_string_lossy().into_owned()),
+    })
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelAdded {
+    added: usize,
+    /// Already in the folder with the right size.
+    skipped: usize,
+}
+
+/// Adds the chosen files. They go to <folder>/<org>/<name>/<path in the model>, the layout LM Studio expects, and
+/// each large file is checked against the SHA-256 Hugging Face lists for it.
+#[tauri::command]
+pub async fn hf_download(state: State<'_, AppState>, repo: String, revision: String, paths: Vec<String>, folder: String) -> Res<ModelAdded> {
+    let (repo, _) = gale_core::hf::parse_repo(&repo).ok_or_else(|| err("invalid_model", "unknown model"))?;
+    if !Path::new(&folder).is_absolute() {
+        return Err(err("invalid_folder", "choose a full folder path"));
+    }
+    let s = state.settings();
+    // Sizes and checksums come from Hugging Face again, not from the page.
+    let info = gale_core::hf::list(&hf_client()?, &s.hf_endpoint, &repo, &revision, settings::hf_token().as_deref()).await?;
+    let base = repo.split('/').fold(PathBuf::from(&folder), |p, part| p.join(part));
+    let (mut added, mut skipped) = (0, 0);
+    for f in info.files.iter().filter(|f| paths.contains(&f.path)) {
+        let rel = gale_core::hf::safe_relative(&f.path).ok_or_else(|| err("invalid_model", format!("unsafe file name {}", f.path)))?;
+        let dest = base.join(&rel);
+        if std::fs::metadata(&dest).is_ok_and(|m| m.len() == f.size) {
+            skipped += 1;
+            continue;
+        }
+        let opts = AddOptions {
+            url: gale_core::hf::file_url(&s.hf_endpoint, &repo, &info.revision, &f.path),
+            save_dir: dest.parent().unwrap_or(&base).to_string_lossy().into_owned(),
+            file_name: dest.file_name().map(|n| n.to_string_lossy().into_owned()),
+            expected_sha256: f.sha256.clone(),
+            start: true,
+            source: None, // "manual": the source column only allows the original values
+            ..Default::default()
+        };
+        state.manager.add(opts).await?;
+        added += 1;
+    }
+    Ok(ModelAdded { added, skipped })
+}
+
+/// The token goes straight to the system keychain; it never touches SQLite or logs.
+#[tauri::command]
+pub async fn set_hf_token(state: State<'_, AppState>, token: Option<String>) -> Res<()> {
+    settings::set_hf_token(token.as_deref()).map_err(|e| err("credentials", e))?;
+    state.manager.set_hf_token(settings::hf_token());
+    Ok(())
 }

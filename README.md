@@ -2,7 +2,7 @@
 
 # Gale Download Manager
 
-Free, open-source download manager for Windows 10 and 11, with a Chrome/Edge extension.
+Free, open-source download manager for Windows, Linux and macOS, with an extension for Chrome, Edge, Brave and Firefox.
 Developed by **Muhammad Faizan** — [faizzyhon.com](https://faizzyhon.com) · [GitHub](https://github.com/faizzyhon) · [LinkedIn](https://www.linkedin.com/in/faizzyhon/)
 
 Built with a Rust multi-connection engine, SQLite,
@@ -10,7 +10,7 @@ Tauri 2 + React 19 UI. Architecture: [`docs/architecture/ARCHITECTURE.md`](docs/
 
 ## Install (Windows 11)
 
-1. Run `Gale_Setup_0.5.0.exe` (or `Gale_0.5.0_x64.msi`) and approve the administrator prompt. The setup also installs
+1. Run `Gale_Setup_0.7.0.exe` (or `Gale_0.7.0_x64.msi`) and approve the administrator prompt. The setup also installs
    Microsoft Edge WebView2 Runtime if the PC lacks it. Gale installs to `C:\Program Files\Gale` for all users.
    Running a newer (or the same) installer updates Gale in place; an older per-user Gale is removed automatically and your download list is kept.
    The build isn't code-signed yet, so SmartScreen may say "Windows protected your PC": choose **More info → Run anyway**.
@@ -22,19 +22,41 @@ Gale starts with Windows in the tray so browser downloads and schedules always w
 
 Uninstall from Settings → Apps. Your download list/history (`%APPDATA%\com.faizzyhon.gale`) and downloaded files are kept.
 
+Portable: unzip `Gale-0.7.0-windows-x64-portable.zip` and run `gale.exe`. It registers the browser helper for your
+user and does not add itself to Windows startup unless you turn that on.
+
+When a new version is out, Gale shows a bar at the top; **Install** downloads the MSI, checks its SHA-256, replaces
+the old version and restarts Gale. Turn the check off in Settings → General.
+
+## Install (Linux and macOS)
+
+- Debian/Ubuntu: `sudo apt install ./Gale_0.7.0_amd64.deb`. Fedora/openSUSE: `sudo dnf install ./Gale_0.7.0_x86_64.rpm`.
+  Install `ffmpeg` from your distribution for video downloads; Gale fetches yt-dlp itself on first use.
+- macOS 11 or later: open `Gale_0.7.0_universal.dmg` and drag Gale to Applications. The app is not notarized, so
+  the first start needs right-click → **Open**. Install FFmpeg with `brew install ffmpeg` for video downloads.
+- Browser extension: unzip `Gale-Chrome-Extension-0.7.0.zip`, then in Chrome/Chromium/Edge/Brave open Extensions →
+  Developer mode → **Load unpacked** → that folder. Start Gale once first so it registers itself with the browsers.
+- Firefox 128+ (any system): `Gale-Firefox-Extension-0.7.0.zip` → `about:debugging` → This Firefox → **Load Temporary
+  Add-on**. Gale registers its helper with Firefox when it starts.
+
+On Linux and macOS the update bar opens the release page; install the new package the same way as above.
+
 ## Features
 
 | Area | What's in |
 |---|---|
-| Engine | 1–32 connections, verified range support with single-connection fallback, work-stealing segments, If-Range/ETag protection, retry with back-off, pause/resume across restarts and crashes, automatic resume on start and retry after network errors, SHA-256 verification, total/per-download speed limits, per-server connection cap, HTTP/HTTPS/SOCKS5 proxy with Credential Manager password |
+| Engine | 1–32 connections, spread over several networks at once (Ethernet, Wi-Fi, a second Wi-Fi adapter) for more total speed, refresh of an expired download address without losing progress, verified range support with single-connection fallback, work-stealing segments, If-Range/ETag protection, retry with back-off, pause/resume across restarts and crashes, automatic resume on start and retry after network errors, SHA-256 verification, total/per-download speed limits, per-server connection cap, HTTP/HTTPS/SOCKS5 proxy with the password kept in the system keychain (Credential Manager, macOS Keychain, Secret Service) |
 | App | Download table with all row actions, properties with segment map, categories, search, dashboard, history, batch add, queues (limits, priority, start/pause/stop), scheduler (once/daily/weekdays/weekly, shutdown after with 60 s cancel), site grabber (robots.txt, depth, filters), notifications, settings (General, Downloads, Browser, Network, Security, Advanced), DB backup/restore |
 | Windows (UI) | Browser-captured downloads open a small "Download File Info" popup (category, file name, folder, size/resume check; Start, Download later, Cancel). Each started download gets its own progress window: live %, speed, time left, connections, a details panel with a speed graph and per-connection bars, pause/resume/cancel, and a completion card with Open / Open folder. Both can be turned off in Settings → General |
 | Windows | Tray + close-to-tray, toasts, start with Windows, single instance, Mark-of-the-Web, optional Defender scan, all-users MSI with in-place updates, Chrome + Edge native messaging registration, clean uninstall |
-| Video | YouTube and other video sites, HLS and DASH streams: pick 1080p/720p/360p or audio-only (MP3 or original); separate audio/video merged without re-encoding; verified with FFprobe. Uses bundled yt-dlp + FFmpeg. See `docs/media/VIDEO-DOWNLOADS.md` |
+| Video | YouTube and other video sites, HLS and DASH streams: pick 1080p/720p/360p or audio-only (MP3 or original); separate audio/video merged without re-encoding; optional subtitles, chapters and SponsorBlock; verified with FFprobe. Uses bundled yt-dlp + FFmpeg. See `docs/media/VIDEO-DOWNLOADS.md` |
+| AI models | Hugging Face: search or paste a model, choose a GGUF quantisation (Q4_K_M preselected) or safetensors with configs, SHA-256 checked against Hugging Face, gated models with an access token kept in the system keychain, save into LM Studio's models folder, hf-mirror.com option |
 | Torrent | Magnet links and .torrent files (link or local file) through librqbit: DHT, trackers, multi-file torrents in their own folder, pause/resume with piece recheck, speed limit, no seeding after completion |
 | Browser | Download interception by type/size/site with bypass & pause, "ask first" mode, context menus (link, queue, media, selected links, all links, copy URL), floating Download button on `<video>`/`<audio>` with a quality menu that is fetched as soon as a video page opens (DRM-protected media refused), magnet and .torrent capture, popup with status/recent/diagnostics, options page |
 
-Not included: DRM-protected video, live streams, playlists, FTP, auto-update, languages other than English. See `docs/security/AUDIT.md` → Known limits.
+Speed compared with aria2c and curl: `docs/benchmarks.md`.
+
+Not included: DRM-protected video, live streams, playlists, FTP, languages other than English. See `docs/security/AUDIT.md` → Known limits.
 
 ## Build
 
@@ -44,6 +66,7 @@ pnpm tauri dev                          # run the app (Windows, macOS or Linux)
 cargo test --workspace                  # engine, DB, queues, protocol, native host
 (cd browser-extension && pnpm build)    # → browser-extension/dist (load unpacked)
 scripts/installer/build-msi.sh          # Linux: cross-compiles and builds the MSI (cargo-xwin + msitools)
+scripts/installer/build-unix.sh         # Linux: .deb + .rpm; macOS: universal .dmg (also run by .github/workflows/release.yml)
 pnpm tauri build                        # on Windows: Tauri's own installers
 ```
 

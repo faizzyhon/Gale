@@ -17,8 +17,18 @@ REPO = "https://github.com/faizzyhon/Gale"
 REL = f"{REPO}/releases/download/v{VERSION}"
 SETUP = f"Gale_Setup_{VERSION}.exe"
 MSI = f"Gale_{VERSION}_x64.msi"
+DEB = f"Gale_{VERSION}_amd64.deb"
+RPM = f"Gale_{VERSION}_x86_64.rpm"
+DMG = f"Gale_{VERSION}_universal.dmg"
 EXT_ZIP = f"Gale-Chrome-Extension-{VERSION}.zip"
 TITLE_SUFFIX = "Gale Download Manager"
+# The contact address shown on the About and Disclaimer pages comes from the environment, so it isn't in the repo:
+#   GALE_CONTACT_EMAIL=you@example.com python3 scripts/website/build.py
+CONTACT_EMAIL = os.environ.get("GALE_CONTACT_EMAIL", "").strip()
+
+
+def contact():
+    return f'<span class="mono">{html.escape(CONTACT_EMAIL)}</span> or ' if CONTACT_EMAIL else ""
 
 
 def installer_info(name):
@@ -39,7 +49,7 @@ ICON = {
     "menu": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>',
 }
 
-NAV = [("index.html", "Home"), ("download.html", "Download"), ("guide.html", "Guide"), ("faq.html", "FAQ"), ("changelog.html", "What's new"), ("about.html", "About")]
+NAV = [("index.html#features", "Features"), ("index.html#speed", "Speed"), ("index.html#download", "Download"), ("index.html#guide", "Guide"), ("index.html#faq", "FAQ"), ("changelog.html", "What's new")]
 
 
 def donate_btn(cls="btn btn-donate", label="Buy me a coffee"):
@@ -76,7 +86,8 @@ def page(file, title, description, body, wide_head=None):
     <a class="brand" href="index.html"><img src="assets/favicon.png" alt="" width="30" height="30">Gale</a>
     <nav class="nav" id="nav" aria-label="Main">{nav}</nav>
     <div class="bar-actions">
-      {donate_btn("btn btn-donate btn-small", "Donate")}
+      <a class="btn btn-secondary btn-small hide-sm" href="{REPO}">{ICON["github"]}Star</a>
+      <a class="btn btn-primary btn-small hide-sm" href="index.html#download">Download</a>
       <button class="icon-btn" id="theme" type="button" aria-label="Switch light or dark theme">{ICON["sun"]}</button>
       <button class="icon-btn menu-toggle" id="menu" type="button" aria-label="Menu" aria-controls="nav" aria-expanded="false">{ICON["menu"]}</button>
     </div>
@@ -90,7 +101,7 @@ def page(file, title, description, body, wide_head=None):
     <div class="foot">
       <div>
         <a class="brand" href="index.html"><img src="assets/favicon.png" alt="" width="30" height="30">Gale</a>
-        <p class="small">A free, open-source download manager for Windows 10 and 11. Version {VERSION}.</p>
+        <p class="small">A free, open-source download manager for Windows, Linux and macOS. Version {VERSION}.</p>
       </div>
       <div><h4>Product</h4><ul><li><a href="download.html">Download</a></li><li><a href="guide.html">User guide</a></li><li><a href="faq.html">FAQ</a></li><li><a href="changelog.html">What's new</a></li></ul></div>
       <div><h4>Project</h4><ul><li><a href="{REPO}">Source code</a></li><li><a href="{REPO}/releases">Releases</a></li><li><a href="{REPO}/issues">Report a problem</a></li><li><a href="support.html">Support Gale</a></li></ul></div>
@@ -115,127 +126,312 @@ def fig(name, alt, w, h, caption, narrow=False):
 
 
 # --------------------------------------------------------------------------------------------- home
-def home():
-    body = f"""
-<section class="hero">
+FIREFOX_ZIP = f"Gale-Firefox-Extension-{VERSION}.zip"
+PORTABLE = f"Gale-{VERSION}-windows-x64-portable.zip"
+BENCH_FILE = Path(__file__).with_name("benchmarks.json")
+
+
+def bench():
+    """Measured results (scripts/website/benchmarks.json, written from docs/benchmarks.md runs)."""
+    return json.loads(BENCH_FILE.read_text()) if BENCH_FILE.exists() else None
+
+
+def copy_block(cmd):
+    return f'<div class="cmd"><code>{html.escape(cmd)}</code><button type="button" class="copy" data-copy="{html.escape(cmd)}" aria-label="Copy command">Copy</button></div>'
+
+
+def bench_section(b):
+    if not b:
+        return ""
+    tools = [("gale", "Gale"), ("aria2c", "aria2c"), ("curl", "curl")]
+    panels = []
+    for s in b["scenarios"]:
+        best = max((r["mibps"] for r in s["results"].values() if r["ok"]), default=1) or 1
+        rows = []
+        for key, label in tools:
+            r = s["results"][key]
+            if r["ok"]:
+                w = max(1.5, r["mibps"] / best * 100)
+                rows.append(f'<div class="bar-row"><span class="who">{label}</span><span class="bar t-{key}"><i style="width:{w:.1f}%"></i></span><span class="val">{r["mibps"]:.1f} MiB/s · {r["seconds"]:.1f} s</span></div>')
+            else:
+                rows.append(f'<div class="bar-row"><span class="who">{label}</span><span class="bar t-{key} failed"></span><span class="val bad">{html.escape(r["note"])}</span></div>')
+        panels.append(f"""
+      <article class="bench-card">
+        <header><span class="sid">{s["id"]}</span><h3>{html.escape(s["title"])}</h3><span class="verdict">{html.escape(s["verdict"])}</span></header>
+        <p class="muted small">{html.escape(s["detail"])}</p>
+        {"".join(rows)}
+      </article>""")
+    table_rows = "".join(
+        f'<tr><td>{s["id"]}. {html.escape(s["title"])}</td>' + "".join(
+            f'<td>{(f"{s["results"][k]["mibps"]:.1f} MiB/s ({s["results"][k]["seconds"]:.1f} s)") if s["results"][k]["ok"] else html.escape(s["results"][k]["note"])}</td>' for k, _ in tools
+        ) + "</tr>" for s in b["scenarios"]
+    )
+    return f"""
+<section id="speed">
   <div class="wrap">
-    <div class="hero-grid">
-      <div class="hero-copy">
-        <span class="eyebrow">Free download manager for Windows</span>
-        <h1>Downloads that pick up where they stopped.</h1>
-        <p class="lead">Gale splits each file into up to 32 parts and downloads them at once, resumes after a crash or restart, and takes over downloads from Chrome and Edge. Free, open source, no ads.</p>
-        <div class="btn-row">
-          <a class="btn btn-primary" href="download.html">{ICON["download"]}Download for Windows</a>
-          <a class="btn btn-secondary" href="guide.html">{ICON["book"]}Read the guide</a>
-        </div>
-        <p class="hero-meta">Version {VERSION} · Windows 10 and 11, 64-bit · MIT License</p>
-      </div>
-      <div class="shot-stack">
-        {shot("downloads-list", "Gale's main window with three downloads in progress and three finished", 1280, 800, cls="main-shot", extra=' loading="eager"')}
-        {shot("progress-window", "A Gale progress window showing 53%, 3.26 MB/s, 8 of 8 connections and a speed graph", 520, 520, cls="float-shot", extra=' loading="eager"')}
-      </div>
+    <div class="section-head">
+      <span class="eyebrow">Speed test</span>
+      <h2>Measured, not promised.</h2>
+      <p class="lead">Gale, aria2c {html.escape(b["aria2"])} and curl {html.escape(b["curl"])} downloading the same files from a local test server. Every file was checked by SHA-256. Higher is better; each panel has its own scale.</p>
     </div>
-    <div class="strip" aria-label="Illustration of eight connections downloading one file">
-      <div class="strip-bars"><span><i style="--p:62%"></i></span><span><i style="--p:48%"></i></span><span><i style="--p:71%"></i></span><span><i style="--p:55%"></i></span><span><i style="--p:66%"></i></span><span><i style="--p:44%"></i></span><span><i style="--p:58%"></i></span><span><i style="--p:69%"></i></span></div>
-      <div class="strip-read" id="strip-read">8 connections · 59%</div>
-      <p class="strip-note">How Gale downloads: each bar is one connection fetching its own part of the file. When a part finishes early, that connection helps with the slowest one.</p>
+    <div class="legend"><span><i class="t-gale"></i>Gale</span><span><i class="t-aria2c"></i>aria2c (16 connections)</span><span><i class="t-curl"></i>curl (one connection)</span></div>
+    <div class="bench-grid">{"".join(panels)}</div>
+    <div class="note-row">
+      <p class="note"><b>Machine:</b> {html.escape(b["machine"])}. Measured {html.escape(b["date"])} with <code>scripts/bench/run.sh</code>; method and raw numbers in <a href="{REPO}/blob/main/docs/benchmarks.md">docs/benchmarks.md</a>.</p>
+      <p class="note"><b>What this does not show:</b> on a normal home line the line itself is the limit, and all three tools reach it. Extra connections help when a server slows down each connection.</p>
     </div>
+    <details class="raw"><summary>All results as a table</summary><div class="table-wrap"><table><tr><th>Test</th><th>Gale</th><th>aria2c</th><th>curl</th></tr>{table_rows}</table></div></details>
+  </div>
+</section>"""
+
+
+def os_card(os_id, title, sub, files, note):
+    rows = []
+    for label, name, rec in files:
+        size, _ = installer_info(name)
+        rows.append(f'<a class="file-row" href="{REL}/{name}"><span><b>{label}</b>{" <em>Recommended</em>" if rec else ""}<small>{name}{f" · {size}" if size else ""}</small></span>{ICON["download"]}</a>')
+    return f"""
+      <div class="os-card" data-os-card="{os_id}">
+        <span class="yours">Your system</span>
+        <h3>{title}</h3>
+        <p class="muted small">{sub}</p>
+        <div class="file-list">{"".join(rows)}</div>
+        <p class="small muted">{note}</p>
+      </div>"""
+
+
+def home():
+    b = bench()
+    a_gain = ""
+    if b:
+        a = b["scenarios"][0]["results"]
+        if a["gale"]["ok"] and a["curl"]["ok"]:
+            a_gain = f'{a["gale"]["mibps"] / a["curl"]["mibps"]:.0f}×'
+    limit = b and b["scenarios"][2]["results"]["gale"]
+    limit_pct = f'{min(100, limit["mibps"] / 8.0 * 100):.0f}%' if limit and limit["ok"] else ""
+    stats = f"""
+    <dl class="stats">
+      <div><dt>{a_gain or "32"}</dt><dd>{"faster than one connection when the server slows each one down (test A)" if a_gain else "connections per file"}</dd></div>
+      <div><dt>32</dt><dd>connections per file, fewer when a server asks for fewer</dd></div>
+      <div><dt>{limit_pct or "0"}</dt><dd>{"of the most a 4-connection server allows, found by itself (test C)" if limit_pct else "ads"}</dd></div>
+      <div><dt>0</dt><dd>ads, accounts and trackers</dd></div>
+    </dl>"""
+    guide_tabs = f"""
+    <div class="tabs" data-tabs>
+      <div class="tab-list" role="tablist" aria-label="Your system">
+        <button role="tab" data-tab="windows" aria-selected="true">Windows</button>
+        <button role="tab" data-tab="mac" aria-selected="false">macOS</button>
+        <button role="tab" data-tab="linux" aria-selected="false">Linux</button>
+      </div>
+      <div class="tab-panel" data-panel="windows">
+        <ol class="steps">
+          <li><div><b>Run {SETUP}</b><p class="muted">Approve the administrator prompt once. If SmartScreen says "Windows protected your PC", click <b>More info → Run anyway</b>: the installer isn't code-signed yet.</p></div></li>
+          <li><div><b>Gale opens</b><p class="muted">It sits in the tray and starts with Windows, so schedules and the browser extension always work.</p></div></li>
+          <li><div><b>Silent install for IT</b>{copy_block(f"msiexec /i {MSI} /qn")}</div></li>
+        </ol>
+      </div>
+      <div class="tab-panel" data-panel="mac" hidden>
+        <ol class="steps">
+          <li><div><b>Open {DMG} and drag Gale to Applications</b><p class="muted">Works on Apple Silicon and Intel Macs with macOS 11 or later.</p></div></li>
+          <li><div><b>First start</b><p class="muted">The app isn't notarized yet, so right-click Gale and choose <b>Open</b> once, or run:</p>{copy_block("xattr -dr com.apple.quarantine /Applications/Gale.app")}</div></li>
+          <li><div><b>Video downloads</b><p class="muted">Install FFmpeg; Gale fetches yt-dlp by itself.</p>{copy_block("brew install ffmpeg")}</div></li>
+        </ol>
+      </div>
+      <div class="tab-panel" data-panel="linux" hidden>
+        <ol class="steps">
+          <li><div><b>Debian, Ubuntu, Mint, Pop!_OS</b>{copy_block(f"sudo apt install ./{DEB}")}</div></li>
+          <li><div><b>Fedora, openSUSE, RHEL</b>{copy_block(f"sudo dnf install ./{RPM}")}</div></li>
+          <li><div><b>Video downloads</b><p class="muted">FFmpeg comes from your distribution; Gale fetches yt-dlp by itself.</p>{copy_block("sudo apt install ffmpeg")}</div></li>
+        </ol>
+      </div>
+    </div>"""
+    ext_tabs = f"""
+    <div class="tabs" data-tabs>
+      <div class="tab-list" role="tablist" aria-label="Your browser">
+        <button role="tab" data-tab="chrome" aria-selected="true">Chrome · Edge · Brave</button>
+        <button role="tab" data-tab="firefox" aria-selected="false">Firefox</button>
+      </div>
+      <div class="tab-panel" data-panel="chrome">
+        <ol class="steps">
+          <li><div><b>Get the extension</b><p class="muted">On Windows it's already in Gale's folder (Start menu → Gale → <i>Install browser extension</i>). On macOS and Linux unzip <a href="{REL}/{EXT_ZIP}">{EXT_ZIP}</a>.</p></div></li>
+          <li><div><b>Load it</b><p class="muted">Open <code>chrome://extensions</code> (or <code>edge://extensions</code>), turn on <b>Developer mode</b>, click <b>Load unpacked</b> and pick the folder.</p></div></li>
+          <li><div><b>Check it says Connected</b><p class="muted">Click the Gale icon in the toolbar. Start Gale once before the browser so it can register itself.</p></div></li>
+        </ol>
+      </div>
+      <div class="tab-panel" data-panel="firefox" hidden>
+        <ol class="steps">
+          <li><div><b>Download {FIREFOX_ZIP}</b><p class="muted">Firefox 128 or later. Start Gale once first: it registers its helper with Firefox.</p></div></li>
+          <li><div><b>Load it</b><p class="muted">Open <code>about:debugging#/runtime/this-firefox</code>, click <b>Load Temporary Add-on</b> and pick the zip. Firefox keeps it until it restarts; a signed version for addons.mozilla.org is on the way.</p></div></li>
+          <li><div><b>Allow it on all sites</b><p class="muted">In <code>about:addons</code> → Gale → <b>Permissions</b>, turn on access to all websites so it can catch downloads.</p></div></li>
+        </ol>
+      </div>
+    </div>"""
+    faq_items = "".join(f"<details><summary>{q}</summary><div><p>{a}</p></div></details>" for q, a in FAQ)
+    body = f"""
+<section class="hero2">
+  <div class="wrap">
+    <a class="pill" href="#models"><span>New in {VERSION}</span>Download AI models from Hugging Face</a>
+    <h1>Fast downloads.<br>Nothing in the way.</h1>
+    <p class="lead">Gale is a free, open-source download manager for Windows, macOS and Linux. It splits each file across up to 32 connections, takes over downloads and videos from your browser, and continues after a crash, a restart or an expired link.</p>
+    <div class="btn-row">
+      <a class="btn btn-primary" id="dl-main" href="#download">{ICON["download"]}<span>Download Gale</span></a>
+      <a class="btn btn-secondary" href="#download">All downloads</a>
+      <a class="btn btn-secondary" href="{REPO}">{ICON["github"]}Star on GitHub</a>
+      {donate_btn("btn btn-secondary", "Donate")}
+    </div>
+    <p class="hero-meta" id="dl-meta">Version {VERSION} · Windows, macOS, Linux · MIT License</p>
+    <ul class="checks"><li>Free and open source</li><li>No ads, no account, no tracking</li><li>Also on Android</li></ul>
+    <figure class="hero-shot">{shot("downloads-list", "Gale's main window with downloads in progress and finished", 1280, 800, cls="main-shot", extra=' loading="eager"')}</figure>
+    {stats}
   </div>
 </section>
 
-<section class="band" id="features">
+<section id="features" class="band">
   <div class="wrap">
     <div class="section-head">
-      <span class="eyebrow">What it does</span>
-      <h2>Everything a download manager should do, and nothing you didn't ask for.</h2>
+      <span class="eyebrow">Features</span>
+      <h2>A complete download manager. Nothing you didn't ask for.</h2>
     </div>
 
     <div class="feature">
       <div class="feature-copy">
-        <h3>Catches downloads from your browser</h3>
-        <p class="muted">Install the Gale extension in Chrome or Edge and downloads go to Gale instead. Before a file starts, the Download File Info window lets you choose its name, category and folder, or save it for later.</p>
-        <ul><li>Choose which file types and sizes Gale takes over</li><li>Right-click any link to download it, queue it, or grab every link on the page</li><li>Downloads from sites you're signed in to just work</li></ul>
+        <span class="eyebrow">Download engine</span>
+        <h3>Every connection busy until the last byte</h3>
+        <p class="muted">Gale splits the file into parts and keeps all connections working: when one finishes early it takes half of the largest part still left. If a server only allows a few connections, Gale notices, uses that many and remembers it.</p>
+        <ul><li>Up to 32 connections per file, written straight into the file</li><li>Resume after pause, crash or restart, checked with ETag and Last-Modified</li><li>Use Ethernet and Wi-Fi together for more total speed</li><li>Expired link? Refresh the address and keep the progress</li></ul>
+      </div>
+      <div class="sim" aria-label="Simulation of eight connections downloading one file">
+        <div class="sim-head"><span>ubuntu-24.04-desktop-amd64.iso</span><b id="strip-read">8 connections · 0%</b></div>
+        <div class="strip-bars">{"".join('<span><i style="--p:0%"></i></span>' for _ in range(8))}</div>
+        <p class="small muted">Simulation: each bar is one connection fetching its own part of the file.</p>
+      </div>
+    </div>
+
+    <div class="feature flip">
+      <div class="feature-copy">
+        <span class="eyebrow">Browser</span>
+        <h3>Click a link. Gale has it.</h3>
+        <p class="muted">The extension for Chrome, Edge, Brave and Firefox hands downloads to Gale with the name, size and resume support already known. Signed-in downloads keep working: cookies go only to the app on your computer.</p>
+        <ul><li>Choose which file types and sizes Gale takes over</li><li>Right-click: download a link, queue it, or grab every link on the page</li><li>Hold Alt to let the browser handle one download itself</li></ul>
       </div>
       <figure>{shot("download-file-info", "The Download File Info window with address, category, file name and folder", 560, 380)}</figure>
     </div>
 
-    <div class="feature flip">
-      <div class="feature-copy">
-        <h3>Shows exactly what's happening</h3>
-        <p class="muted">Every download gets a small progress window with its speed, time left and connections. Open the details to see the speed over the last minute and how far each connection has got. When it finishes, open the file or its folder in one click.</p>
-        <ul><li>Pause, resume or cancel from the window</li><li>Interrupted downloads continue where they stopped, even after a restart</li><li>Every file is checked before it's marked complete</li></ul>
-      </div>
-      <figure>{shot("progress-window", "Progress window with speed graph and one bar per connection", 520, 520)}</figure>
-    </div>
-
     <div class="feature">
       <div class="feature-copy">
-        <h3>Saves videos in the quality you pick</h3>
-        <p class="muted">Hover a video and click <b>Download</b>: a menu on the page lists every quality, from 1080p down to audio only. Pick one and it starts downloading. Gale joins the video and sound into one file.</p>
-        <ul><li>Works with YouTube and most video sites, plus HLS and DASH streams</li><li>Audio only as MP3, or as published</li><li>Or paste the page into Gale's Add Video dialog</li><li>DRM-protected video is not supported</li></ul>
+        <span class="eyebrow">Video</span>
+        <h3>Any video, the quality you pick</h3>
+        <p class="muted">A Download button appears on the video. Pick the quality, or just the audio as MP3. Gale uses yt-dlp for over a thousand sites, joins video and sound into one file and keeps yt-dlp up to date.</p>
+        <ul><li>Subtitles and chapters inside the file</li><li>Optional SponsorBlock to cut sponsor segments</li><li>HLS and DASH streams; DRM-protected video is not supported</li></ul>
       </div>
-      <figure>{shot("video-button", "Quality menu on a web page video listing 1080p, 720p, 360p and audio-only options", 1280, 800)}</figure>
+      <figure>{shot("video-quality", "Quality menu with 1080p, 720p, 480p and audio-only options", 1280, 800)}</figure>
     </div>
 
-    <div class="feature flip">
+    <div class="feature flip" id="models">
       <div class="feature-copy">
-        <h3>Queue it, schedule it, walk away</h3>
-        <p class="muted">Put downloads in a queue to run a few at a time, then schedule the queue for the night. Gale can shut down the PC when everything is done, with a 60-second chance to cancel.</p>
-        <ul><li>Once, daily, weekdays or weekly schedules</li><li>Speed limit presets one right-click away in the tray</li><li>Starts with Windows in the tray, so schedules always run</li></ul>
+        <span class="eyebrow">AI models · new in {VERSION}</span>
+        <h3>Hugging Face models, just the files you need</h3>
+        <p class="muted">Search for a model or paste its name. Gale shows each GGUF size (Q4_K_M is picked for you) or the weights with their configs, downloads them over many connections and checks every large file against Hugging Face's SHA-256.</p>
+        <ul><li>Gated and private models with your access token, kept in the system keychain</li><li>Save straight into LM Studio's models folder</li><li>Mirror support (hf-mirror.com); files you already have are skipped</li></ul>
       </div>
-      <figure>{shot("queues", "Queues and Scheduler page with the main queue", 1280, 800)}</figure>
+      <figure>{shot("ai-models", "Gale's AI Models page with GGUF sizes of a model and Q4_K_M selected", 1280, 800)}</figure>
+    </div>
+
+    <div class="cards3">
+      <article class="card"><h3>Queues and scheduler</h3><p class="muted">Run downloads a few at a time, schedule them for the night, and shut down the PC when everything is done.</p></article>
+      <article class="card"><h3>Site grabber</h3><p class="muted">Give it a page and the file types you want; it follows links and lists every file to choose from. It respects robots.txt.</p></article>
+      <article class="card"><h3>Torrents and magnets</h3><p class="muted">Magnet links and .torrent files open in Gale. Sharing stops when your download is done.</p></article>
+      <article class="card"><h3>Light, dark, six accents</h3><p class="muted">Follows your system theme, or pick one. Six accent colours in Settings.</p></article>
+      <article class="card"><h3>Out of the way</h3><p class="muted">Tray icon, a small progress window per download, notifications, and an optional clipboard watch for copied links.</p></article>
+      <article class="card"><h3>Private by design</h3><p class="muted">No account, no analytics, no server of our own. Passwords and tokens stay in the system keychain. <a href="privacy.html">Privacy policy</a></p></article>
     </div>
   </div>
 </section>
-
-<section>
+{bench_section(b)}
+<section id="download" class="band">
   <div class="wrap">
     <div class="section-head">
-      <span class="eyebrow">At a glance</span>
-      <h2>The details.</h2>
+      <span class="eyebrow">Download</span>
+      <h2>Free, for every computer.</h2>
+      <p class="lead">Version {VERSION}, straight from GitHub. The file we recommend for your system is marked.</p>
     </div>
-    <dl class="specs">
-      <div><dt>Connections</dt><dd>Up to 32 per file</dd></div>
-      <div><dt>Resume</dt><dd>After pause, crash or restart</dd></div>
-      <div><dt>Torrents</dt><dd>Magnet links and .torrent files</dd></div>
-      <div><dt>Checks</dt><dd>Size, and SHA-256 if you add one</dd></div>
-      <div><dt>Browsers</dt><dd>Chrome and Edge</dd></div>
-      <div><dt>Proxy</dt><dd>HTTP, HTTPS, SOCKS5</dd></div>
-      <div><dt>Price</dt><dd>Free, no ads, no account</dd></div>
-    </dl>
+    <div class="os-grid">
+      {os_card("windows", "Windows", "Windows 10 (1809+) or 11, 64-bit", [("Setup", SETUP, True), ("MSI · all users", MSI, False), ("Portable · no install", PORTABLE, False)], "SmartScreen may warn the first time because the installer isn't code-signed yet: <b>More info → Run anyway</b>.")}
+      {os_card("mac", "macOS", "macOS 11 or later · Apple Silicon and Intel", [("Universal", DMG, True)], "Not notarized yet: right-click Gale → <b>Open</b> the first time. Install FFmpeg with Homebrew for video.")}
+      {os_card("linux", "Linux", "64-bit · deb or rpm", [("Debian, Ubuntu, Mint", DEB, True), ("Fedora, openSUSE, RHEL", RPM, False)], "Both register the browser helper for Chrome, Chromium, Edge, Brave and Firefox. Install ffmpeg for video.")}
+    </div>
+    <div class="cards2">
+      <div class="card">
+        <h3>Browser extension</h3>
+        <p class="muted">Install the app first, then the extension. <a href="{REL}/{EXT_ZIP}">Chrome, Edge, Brave</a> · <a href="{REL}/{FIREFOX_ZIP}">Firefox</a> · <a href="#guide">how to install</a></p>
+      </div>
+      <div class="card">
+        <h3>Check your download</h3>
+        <p class="muted small">Every file has a <code>.sha256</code> next to it on the release page.</p>
+        {copy_block(f"Get-FileHash .\\{SETUP}")}
+        {copy_block(f"sha256sum {DEB}")}
+      </div>
+    </div>
+    <p class="muted small">Android: <a href="{REPO}/releases">APK on the release page</a>. Older versions and the source code: <a href="{REPO}/releases">GitHub Releases</a>.</p>
   </div>
 </section>
 
-<section class="band">
+<section id="guide">
   <div class="wrap">
-    <div class="feature">
-      <div class="feature-copy">
-        <span class="eyebrow">Private by design</span>
-        <h3>Your downloads stay on your PC</h3>
-        <p class="muted">Gale has no account, no ads, no analytics and no server of its own. Your download list lives in a file on your computer, and passwords for proxies are kept in Windows Credential Manager. The whole source code is public, so anyone can check.</p>
-        <p><a href="privacy.html">Read the privacy policy</a></p>
-      </div>
-      <figure>{shot("about-gale", "Gale's About page showing version, developer and privacy information", 1280, 800)}</figure>
+    <div class="section-head">
+      <span class="eyebrow">Guide</span>
+      <h2>Up and running in two minutes.</h2>
+      <p class="lead">Install the app, add the browser extension, done. The <a href="guide.html">full guide</a> covers every feature.</p>
     </div>
+    <h3 class="part"><span>Part 1</span>Install the app</h3>
+    {guide_tabs}
+    <h3 class="part"><span>Part 2</span>Add the browser extension</h3>
+    {ext_tabs}
   </div>
 </section>
 
-<section>
+<section id="faq" class="band">
+  <div class="wrap faq-grid">
+    <div class="section-head">
+      <span class="eyebrow">FAQ</span>
+      <h2>Questions, answered.</h2>
+      <p class="muted">Something else? <a href="{REPO}/issues">Open an issue on GitHub</a>.</p>
+    </div>
+    <div class="faq">{faq_items}</div>
+  </div>
+</section>
+
+<section class="closing">
   <div class="wrap">
-    <div class="coffee">
-      <div>
-        <h2>Gale is free. Keep it that way.</h2>
-        <p>Gale is built and maintained by one developer in his own time. If it saves you time, a coffee helps pay for code signing and keeps updates coming.</p>
-      </div>
-      <div class="btn-row">{donate_btn()}<a class="btn btn-secondary" href="{REPO}">{ICON["github"]}Star on GitHub</a></div>
+    <img src="assets/icon-512.png" alt="" width="72" height="72">
+    <h2>Fast downloads. Nothing in the way.</h2>
+    <p class="muted">Free, open source and ready for your next download.</p>
+    <div class="btn-row center">
+      <a class="btn btn-primary" href="#download">{ICON["download"]}Download Gale</a>
+      <a class="btn btn-secondary" href="{REPO}">{ICON["github"]}Star on GitHub</a>
+      {donate_btn("btn btn-secondary", "Donate")}
     </div>
   </div>
 </section>
 """
-    page("index.html", "Home", "Gale is a free, open-source download manager for Windows: faster multi-connection downloads, resume after restarts, browser integration and video downloads.", body)
+    page("index.html", "Home", "Gale is a free, open-source download manager for Windows, macOS and Linux: multi-connection downloads, resume, browser integration, video, torrents and Hugging Face models.", body)
 
 
 # ----------------------------------------------------------------------------------------- download
+def unix_card(title, name, how):
+    size, digest = installer_info(name)
+    hash_line = f'<p class="hash">SHA-256: {digest}</p>' if digest else ""
+    how = f"<code>{html.escape(how)}</code>" if how.startswith("sudo") else html.escape(how)
+    return f"""
+    <div class="dl-card">
+      <h3>{title}</h3>
+      <p class="file">{name}{f" · {size}" if size else ""}</p>
+      <p class="muted">{how}</p>
+      {hash_line}
+      <a class="btn btn-secondary" href="{REL}/{name}">{ICON["download"]}Download</a>
+    </div>"""
+
+
 def download():
     s_size, s_hash = installer_info(SETUP)
     m_size, m_hash = installer_info(MSI)
@@ -244,9 +440,16 @@ def download():
 <div class="wrap">
   <div class="page-head">
     <span class="eyebrow">Download · version {VERSION}</span>
-    <h1>Get Gale for Windows</h1>
-    <p class="lead">One installer sets up Gale, the browser extension and the video tools. It asks for administrator approval once and installs for everyone on the PC. Installing a newer version updates Gale in place and keeps your downloads list.</p>
+    <h1>Get Gale</h1>
+    <p class="lead">Free for Windows, macOS and Linux. The file we recommend for your system is marked. On Windows one installer sets up Gale, the browser extension and the video tools; installing a newer version updates Gale in place and keeps your downloads list.</p>
   </div>
+  <div class="os-grid" style="margin-bottom:56px">
+    {os_card("windows", "Windows", "Windows 10 (1809+) or 11, 64-bit", [("Setup", SETUP, True), ("MSI · all users", MSI, False), ("Portable · no install", PORTABLE, False)], "SmartScreen may warn the first time: <b>More info → Run anyway</b>.")}
+    {os_card("mac", "macOS", "macOS 11 or later · Apple Silicon and Intel", [("Universal", DMG, True)], "Right-click Gale → <b>Open</b> the first time.")}
+    {os_card("linux", "Linux", "64-bit · deb or rpm", [("Debian, Ubuntu, Mint", DEB, True), ("Fedora, openSUSE, RHEL", RPM, False)], "Install ffmpeg for video downloads.")}
+  </div>
+  <p class="muted">Browser extension: <a href="{REL}/{EXT_ZIP}">Chrome, Edge, Brave</a> · <a href="{REL}/{FIREFOX_ZIP}">Firefox</a> · <a href="index.html#guide">how to install it</a>. Android: <a href="{REPO}/releases">APK on the release page</a>.</p>
+  <h2 style="margin-top:56px">Windows files in detail</h2>
   <div class="dl-grid">
     <div class="dl-card primary">
       <span class="tag">Recommended</span>
@@ -273,6 +476,7 @@ def download():
     </div>
   </div>
 
+
   <div class="doc" style="grid-template-columns:minmax(0,1fr);padding-top:56px">
     <article>
       <section>
@@ -297,7 +501,7 @@ def download():
   </div>
 </div>
 """
-    page("download.html", "Download", f"Download Gale {VERSION} for Windows 10 and 11: setup, MSI package and browser extension.", body)
+    page("download.html", "Download", f"Download Gale {VERSION} for Windows, Linux and macOS: setup, MSI, .deb, .rpm, .dmg and browser extension.", body)
 
 
 # -------------------------------------------------------------------------------------------- guide
@@ -528,13 +732,17 @@ FAQ = [
     ("Is Gale safe?", "The whole source code is public on GitHub, so anyone can check what it does. Gale doesn't collect data, has no account and contacts only the servers you download from. The installer isn't code-signed yet, which is why SmartScreen may warn about it; you can compare the file's SHA-256 with the one on the download page."),
     ("How is it faster than downloading in the browser?", "Gale opens several connections to the server and downloads different parts of the file at the same time. Many servers limit the speed of each connection, so several together use more of your bandwidth. If a server allows only one connection, Gale uses one."),
     ("Can it resume a download that stopped?", "Yes, if the server supports it, which most do. Paused or interrupted downloads continue where they stopped, even after closing Gale or restarting the PC. Gale checks that the file on the server hasn't changed before continuing."),
-    ("Which browsers does it work with?", "Google Chrome and Microsoft Edge, version 116 or later. Other Chromium browsers may work but aren't tested."),
+    ("Which browsers does it work with?", "Chrome, Edge and Brave (version 116 or later) and Firefox 128 or later, on Windows, macOS and Linux. Other Chromium browsers that read Chrome's settings, such as Vivaldi and Opera, usually work too but aren't tested."),
+    ("Can it download AI models from Hugging Face?", "Yes, from version 0.7.0. Open AI Models, search or paste a model name, and pick a GGUF size or the weights. Gale checks every large file against the SHA-256 Hugging Face lists, can save straight into LM Studio's models folder, and uses your access token (kept in the system keychain) for gated models."),
     ("Can I download YouTube videos?", "Gale can save videos from YouTube and most other video sites in the quality you choose. Downloading may be against a site's terms, and some content is protected by copyright: only download what you have the right to. DRM-protected video (Netflix, most paid services) can't be downloaded."),
     ("Can Gale download torrents?", "Yes. Click a magnet or .torrent link in the browser, paste a magnet link into Add URL, or open a .torrent file from your PC. Gale stops sharing a torrent once it has finished downloading. Peers in a torrent can see your IP address, and you are responsible for what you download and share."),
     ("Do downloads continue after a restart?", "Yes. Downloads that were running when Gale closed or the PC restarted start again by themselves when Gale starts, and a download that failed because the connection dropped is retried a few times. Turn this off in Settings → General."),
-    ("Does Gale run on macOS or Linux?", "Not as a released app. Gale is made for Windows 10 and 11."),
+    ("Does Gale run on macOS or Linux?", "Yes, from version 0.6.0: a .deb for Debian and Ubuntu, an .rpm for Fedora and openSUSE, and a .dmg for macOS 11 or later, on the download page. Windows-only parts (Defender scan, the setup's WebView2 install, automatic install of updates) are not in those versions."),
+    ("Can Gale use two internet connections at once?", "Yes. In Settings → Network pick two or more networks, for example Ethernet and Wi-Fi. Each download's connections are spread over them, so the speeds add up when the server allows several connections. If one network drops, its connections move to the others."),
+    ("A download stopped because its link expired. Do I have to start again?", "No. Right-click it and choose Refresh download address. Paste a new link, or let Gale open the website so you can start the download again there; Gale checks it's the same file and goes on from where it stopped."),
     ("Does it need administrator rights?", "Only once, to install into Program Files for all users. Gale itself runs as a normal program."),
-    ("Does Gale update itself?", "Not yet. Download the new setup from this site or GitHub and run it; it updates Gale in place and keeps your list."),
+    ("Does Gale update itself?", "On Windows, yes: from version 0.6.0 Gale tells you when a new version is out, and Install replaces the old version and restarts Gale (your list is kept). On macOS and Linux it opens the release page; install the new package the same way as the first time."),
+    ("Is there a portable version?", "Yes, for Windows: the portable ZIP runs without installing. It registers its browser helper for your user and doesn't add itself to Windows startup unless you turn that on."),
     ("Where does Gale save files?", "In Downloads\\Gale by default. Change it in Settings → General, or per download in the Add download dialog. With category folders on, videos, music and documents go into their own subfolders."),
     ("How can I support Gale?", 'Star the project on GitHub, tell a friend, report problems you find, or <a href="support.html">buy the developer a coffee</a>.'),
 ]
@@ -553,6 +761,22 @@ def faq():
 
 # ---------------------------------------------------------------------------------------- changelog
 LOG = [
+    ("0.7.0", "November 2026", [
+        "AI Models: search Hugging Face or paste a model, pick a GGUF size or the weights, and download with SHA-256 checks; gated models with your token; save into LM Studio's folder",
+        "Servers that allow only a few connections are detected: Gale uses what the server accepts and remembers it",
+        "Videos: subtitles and chapters inside the file, and optional SponsorBlock",
+        "Firefox extension, and the browser helper registers with Firefox on Windows, macOS and Linux",
+        "Portable ZIP for Windows",
+        "Clipboard watch (off by default) and six accent colours",
+        "Cookies and sign-in headers are no longer sent along when a download redirects to another site",
+    ]),
+    ("0.6.0", "November 2026", [
+        "Gale for Linux (.deb and .rpm) and macOS (universal .dmg)",
+        "Refresh a download whose link stopped working: paste a new address or get a fresh one from the website, and the download goes on from where it stopped",
+        "Use several networks at once: pick Ethernet, Wi-Fi and a second Wi-Fi adapter in Settings → Network and the connections of each download are spread over them",
+        "Gale tells you when a new version is out; on Windows, Install replaces the old version and restarts Gale",
+        "The browser helper only talks to the Gale program of the signed-in user",
+    ]),
     ("0.5.0", "November 2026", [
         "Torrent downloads: magnet links and .torrent files, from the browser, the clipboard or a file on your PC",
         "Unfinished downloads resume by themselves when Gale starts, and downloads that failed because the connection dropped are retried",
@@ -636,7 +860,7 @@ def about():
     <p>Gale stands on the work of many open-source projects, including Rust, Tokio, reqwest, SQLx, Tauri, React and Framer Motion. Torrents use <a href="https://github.com/ikatson/rqbit">librqbit</a> (Apache 2.0). It ships <a href="https://github.com/yt-dlp/yt-dlp">yt-dlp</a> (Unlicense) and <a href="https://ffmpeg.org">FFmpeg</a> (LGPL); their licences are installed with Gale and listed in <a href="{REPO}/blob/main/scripts/installer/THIRD-PARTY-NOTICES.txt">THIRD-PARTY-NOTICES</a>.</p>
 
     <h2>Contact</h2>
-    <p>For bugs and feature requests, please <a href="{REPO}/issues">open an issue on GitHub</a> so others can find the answer too. For anything else: <span class="mono">faizzyhon@gmail.com</span></p>
+    <p>For bugs and feature requests, please <a href="{REPO}/issues">open an issue on GitHub</a> so others can find the answer too. For anything else: {contact()}<a href="https://faizzyhon.com">faizzyhon.com</a>.</p>
   </div>
 </div>
 """
@@ -748,7 +972,7 @@ def disclaimer():
     <h2>Website content</h2>
     <p>Information on this website is provided for general guidance and may change without notice. Screenshots show Gale {VERSION}; other versions may look different.</p>
     <h2>Contact</h2>
-    <p><span class="mono">faizzyhon@gmail.com</span> or <a href="{REPO}/issues">GitHub issues</a>.</p>
+    <p>{contact()}<a href="{REPO}/issues">GitHub issues</a>.</p>
   </div>
 </div>
 """

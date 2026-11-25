@@ -37,15 +37,20 @@ struct ServerState {
     version: AtomicUsize,
     requests: AtomicUsize,
     flaky_failures: AtomicUsize,
+    /// Ranged requests still sending their body ("limit4" mode refuses a fifth).
+    in_flight: Arc<AtomicUsize>,
+    refused: AtomicUsize,
     range_starts: Mutex<Vec<u64>>,
 }
 
-/// Modes: ranged | plain | lying | flaky | slow | changing | chunked | auth
+/// Modes: ranged | plain | lying | flaky | slow | changing | chunked | auth | mirror (same file, other ETag) | short |
+/// limit4 (slow, answers 503 to more than 4 connections at once, like servers that cap connections per client)
 async fn serve(State(st): State<Arc<ServerState>>, UrlPath(mode): UrlPath<String>, req: HeaderMap) -> Response {
     st.requests.fetch_add(1, Ordering::SeqCst);
     let version = if mode == "changing" { st.version.load(Ordering::SeqCst) as u32 } else { 0 };
-    let data = content(SIZE, version);
-    let etag = format!("\"v{version}\"");
+    let data = if mode == "short" { content(SIZE / 2, 0) } else { content(SIZE, version) };
+    let size = data.len();
+    let etag = if mode == "mirror" { "\"mirror-copy\"".to_string() } else { format!("\"v{version}\"") };
 
     if mode == "auth" && req.get(header::AUTHORIZATION).is_none() {
         return Response::builder().status(401).body(Body::empty()).unwrap();
@@ -63,7 +68,7 @@ async fn serve(State(st): State<Arc<ServerState>>, UrlPath(mode): UrlPath<String
         .and_then(|r| {
             let (s, e) = r.split_once('-')?;
             let s: usize = s.parse().ok()?;
-            let e: usize = if e.is_empty() { SIZE - 1 } else { e.parse::<usize>().ok()?.min(SIZE - 1) };
+            let e: usize = if e.is_empty() { size - 1 } else { e.parse::<usize>().ok()?.min(size - 1) };
             Some((s, e))
         })
         .filter(|_| honours_ranges && if_range_ok);
@@ -77,19 +82,35 @@ async fn serve(State(st): State<Arc<ServerState>>, UrlPath(mode): UrlPath<String
             if (s, e) != (0, 0) {
                 st.range_starts.lock().unwrap().push(s as u64); // probe requests excluded
             }
-            b = b.header(header::CONTENT_RANGE, format!("bytes {s}-{e}/{SIZE}"));
+            b = b.header(header::CONTENT_RANGE, format!("bytes {s}-{e}/{size}"));
             (StatusCode::PARTIAL_CONTENT, data.slice(s..=e))
         }
         None => (StatusCode::OK, data),
     };
     b = b.status(status).header(header::CONTENT_LENGTH, slice.len());
 
+    struct InFlight(Arc<AtomicUsize>);
+    impl Drop for InFlight {
+        fn drop(&mut self) {
+            self.0.fetch_sub(1, Ordering::SeqCst);
+        }
+    }
+    let in_flight = (mode == "limit4" && slice.len() > 1).then(|| {
+        let n = st.in_flight.fetch_add(1, Ordering::SeqCst) + 1;
+        n
+    });
+    if in_flight.is_some_and(|n| n > 4) {
+        st.in_flight.fetch_sub(1, Ordering::SeqCst);
+        st.refused.fetch_add(1, Ordering::SeqCst);
+        return Response::builder().status(503).body(Body::empty()).unwrap();
+    }
+    let guard = in_flight.map(|_| InFlight(st.in_flight.clone()));
     let fail_this_one = mode == "flaky" && slice.len() > 1 && st.flaky_failures.fetch_add(1, Ordering::SeqCst) < 6;
-    let delay = if mode == "slow" { Some(Duration::from_millis(100)) } else { None };
+    let delay = if matches!(mode.as_str(), "slow" | "mirror" | "limit4") { Some(Duration::from_millis(100)) } else { None };
     let chunks: Vec<Bytes> = slice.chunks(16 * 1024).map(Bytes::copy_from_slice).collect();
-    let body = stream::unfold((chunks.into_iter(), 0usize), move |(mut it, n)| async move {
+    let body = stream::unfold((chunks.into_iter(), 0usize, guard), move |(mut it, n, guard)| async move {
         if fail_this_one && n == 3 {
-            return Some((Err(std::io::Error::other("simulated connection drop")), (it, n + 1)));
+            return Some((Err(std::io::Error::other("simulated connection drop")), (it, n + 1, guard)));
         }
         if fail_this_one && n > 3 {
             return None;
@@ -98,7 +119,7 @@ async fn serve(State(st): State<Arc<ServerState>>, UrlPath(mode): UrlPath<String
         if let Some(d) = delay {
             tokio::time::sleep(d).await;
         }
-        Some((Ok(c), (it, n + 1)))
+        Some((Ok(c), (it, n + 1, guard)))
     });
     b.body(Body::from_stream(body)).unwrap()
 }
@@ -600,4 +621,152 @@ async fn grabber_crawls_politely() {
     assert_eq!(r.pages_visited, 2, "start page + a.html; b.html is beyond depth 1");
     let none = gale_core::grabber::GrabOptions { extensions: vec![], ..o };
     assert!(gale_core::grabber::crawl(&client, &none, &CancellationToken::new()).await.is_err());
+}
+
+#[tokio::test]
+async fn refreshed_address_keeps_progress_and_rejects_a_different_file() {
+    let (addr, st) = start_server().await;
+    let dir = tempfile::tempdir().unwrap();
+    let m = manager(&dir.path().join("gale.db")).await;
+    let id = m.add(add(addr, "slow", dir.path())).await.unwrap();
+    wait_for(&m, id, |d| d.status == DownloadStatus::Downloading && d.downloaded_bytes > 0).await;
+    m.stop_and_wait(id).await.unwrap();
+    let before = m.db().get_download(id).await.unwrap();
+
+    // A link to a file of another size is refused and nothing changes.
+    let err = m.refresh_url(id, url(addr, "short").as_str(), None, true).await.unwrap_err();
+    assert!(err.to_string().contains("different file"), "{err}");
+    let same = m.db().get_download(id).await.unwrap();
+    assert_eq!((same.url.as_str(), same.status), (before.url.as_str(), DownloadStatus::Paused));
+
+    // The same file from another address (different ETag, like a mirror or a new signed link) continues.
+    st.range_starts.lock().unwrap().clear();
+    m.refresh_url(id, url(addr, "mirror").as_str(), None, true).await.unwrap();
+    let done = wait_for(&m, id, |d| matches!(d.status, DownloadStatus::Completed | DownloadStatus::Failed)).await;
+    assert_eq!(done.status, DownloadStatus::Completed, "{:?}", done.error_message);
+    assert_eq!(done.url, url(addr, "mirror").to_string());
+    assert_eq!(sha(&std::fs::read(done.final_path.unwrap()).unwrap()), sha(&content(SIZE, 0)));
+    let starts = st.range_starts.lock().unwrap().clone();
+    assert!(!starts.is_empty() && starts.iter().all(|&s| s > 0), "kept the downloaded part: {starts:?}");
+}
+
+/// Serves `content(SIZE, 0)` with ranges and records which local address each connection came from.
+async fn start_peer_logging_server() -> (SocketAddr, Arc<Mutex<Vec<std::net::IpAddr>>>) {
+    use axum::extract::ConnectInfo;
+    let peers = Arc::new(Mutex::new(Vec::new()));
+    let p2 = peers.clone();
+    let app = Router::new().route(
+        "/f.bin",
+        get(move |ConnectInfo(from): ConnectInfo<SocketAddr>, req: HeaderMap| {
+            let peers = p2.clone();
+            async move {
+                peers.lock().unwrap().push(from.ip());
+                let data = content(SIZE, 0);
+                let (s, e) = req
+                    .get(header::RANGE)
+                    .and_then(|v| v.to_str().ok()?.strip_prefix("bytes=")?.split_once('-').map(|(a, b)| (a.parse::<usize>().ok(), b.parse::<usize>().ok())))
+                    .map(|(a, b)| (a.unwrap_or(0), b.unwrap_or(SIZE - 1).min(SIZE - 1)))
+                    .unwrap_or((0, SIZE - 1));
+                Response::builder()
+                    .status(StatusCode::PARTIAL_CONTENT)
+                    .header(header::ACCEPT_RANGES, "bytes")
+                    .header(header::CONTENT_RANGE, format!("bytes {s}-{e}/{SIZE}"))
+                    .body(Body::from(data.slice(s..=e)))
+                    .unwrap()
+            }
+        }),
+    );
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:0").await.unwrap();
+    let port = listener.local_addr().unwrap().port();
+    tokio::spawn(async move { axum::serve(listener, app.into_make_service_with_connect_info::<SocketAddr>()).await.unwrap() });
+    (SocketAddr::from(([127, 0, 0, 1], port)), peers)
+}
+
+async fn run_with_networks(networks: &[&str]) -> (gale_core::Result<Outcome>, Vec<std::net::IpAddr>, tempfile::TempDir) {
+    let (addr, peers) = start_peer_logging_server().await;
+    let dir = tempfile::tempdir().unwrap();
+    let c = EngineConfig { connections: 6, networks: networks.iter().map(|s| s.to_string()).collect(), ..cfg() };
+    let client = engine::build_client(&c).unwrap();
+    let u: url::Url = format!("http://{addr}/f.bin").parse().unwrap();
+    let probe = engine::probe(&client, &u, &RequestHeaders::default(), None).await.unwrap();
+    peers.lock().unwrap().clear(); // only count the download's connections
+    let job = Job { probe, temp_path: dir.path().join("f.part"), final_path: dir.path().join("f.bin"), segments: vec![], headers: RequestHeaders::default(), expected_sha256: None };
+    let r = engine::run(&client, &c, job, CancellationToken::new(), Arc::new(|_| {})).await;
+    let seen = peers.lock().unwrap().clone();
+    (r, seen, dir)
+}
+
+#[tokio::test]
+async fn connections_are_spread_over_the_chosen_networks() {
+    // Two local addresses stand in for Ethernet and Wi-Fi (127.0.0.0/8 is all loopback on Linux).
+    let (r, seen, _dir) = run_with_networks(&["127.0.0.1", "127.0.0.2"]).await;
+    assert_completed_matches(r, 0);
+    let ip = |s: &str| s.parse::<std::net::IpAddr>().unwrap();
+    assert!(seen.contains(&ip("127.0.0.1")) && seen.contains(&ip("127.0.0.2")), "{seen:?}");
+}
+
+#[tokio::test]
+async fn a_network_that_cannot_connect_is_skipped_by_retries() {
+    // 192.0.2.1 (TEST-NET-1) is not on this machine, so binding to it fails; its parts move to the other network.
+    let (r, seen, _dir) = run_with_networks(&["192.0.2.1", "127.0.0.2"]).await;
+    assert_completed_matches(r, 0);
+    assert!(seen.iter().all(|ip| *ip == "127.0.0.2".parse::<std::net::IpAddr>().unwrap()), "{seen:?}");
+}
+
+#[tokio::test]
+async fn a_server_that_limits_connections_is_respected_and_remembered() {
+    let (addr, st) = start_server().await;
+    let dir = tempfile::tempdir().unwrap();
+    let c = EngineConfig { connections: 8, min_segment: 16 * 1024, ..cfg() };
+    let (r, _) = run_engine(addr, "limit4", dir.path(), &c).await;
+    assert_completed_matches(r, 0);
+    assert!(st.refused.load(Ordering::SeqCst) > 0, "the server did refuse connections");
+    let learned = engine::learned_limit(&url(addr, "limit4")).expect("limit learned");
+    assert!((1..=4).contains(&learned), "learned {learned}");
+
+    // The next download from that server starts with only what it accepted: no refused connections at all.
+    let before = st.requests.load(Ordering::SeqCst);
+    let refused_before = st.refused.load(Ordering::SeqCst);
+    let dir2 = tempfile::tempdir().unwrap();
+    let (r, max_active) = run_engine(addr, "limit4", dir2.path(), &c).await;
+    assert_completed_matches(r, 0);
+    assert!(max_active as usize <= learned, "max {max_active} > learned {learned}");
+    assert!(st.requests.load(Ordering::SeqCst) - before >= 2);
+    assert_eq!(st.refused.load(Ordering::SeqCst), refused_before, "nothing refused the second time");
+}
+
+/// Real network: lists a tiny public model on huggingface.co, picks the default files (safetensors + configs) and
+/// downloads them through the manager; the safetensors file is checked against Hugging Face's SHA-256.
+/// Run with `cargo test -p gale-core --test integration -- --ignored hugging_face`.
+#[tokio::test]
+#[ignore]
+async fn hugging_face_model_downloads_and_verifies() {
+    let client = reqwest::Client::new();
+    let info = gale_core::hf::list(&client, gale_core::hf::DEFAULT_ENDPOINT, "hf-internal-testing/tiny-random-gpt2", "main", None).await.unwrap();
+    let mut rec = info.recommended.clone();
+    rec.sort();
+    assert!(rec.contains(&"model.safetensors".to_string()) && rec.contains(&"config.json".to_string()), "{rec:?}");
+    assert!(!rec.iter().any(|p| p.ends_with(".h5") || p.ends_with(".bin")), "other weight formats not picked: {rec:?}");
+
+    let dir = tempfile::tempdir().unwrap();
+    let m = manager(&dir.path().join("db.sqlite")).await;
+    for f in info.files.iter().filter(|f| info.recommended.contains(&f.path)) {
+        let id = m
+            .add(AddOptions {
+                url: gale_core::hf::file_url(gale_core::hf::DEFAULT_ENDPOINT, &info.repo, "main", &f.path),
+                save_dir: dir.path().join("models").to_string_lossy().into(),
+                file_name: Some(f.path.clone()),
+                expected_sha256: f.sha256.clone(),
+                start: true,
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+        let d = wait_for(&m, id, |d| matches!(d.status, DownloadStatus::Completed | DownloadStatus::Failed)).await;
+        assert_eq!(d.status, DownloadStatus::Completed, "{}: {:?}", f.path, d.error_message);
+        assert_eq!(std::fs::metadata(dir.path().join("models").join(&f.path)).unwrap().len(), f.size, "{}", f.path);
+        if f.path == "model.safetensors" {
+            assert_eq!(d.sha256.as_deref(), f.sha256.as_deref(), "verified against Hugging Face's checksum");
+        }
+    }
 }

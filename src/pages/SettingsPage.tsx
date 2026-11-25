@@ -4,10 +4,11 @@ import { Button, Field, inputCls } from "../components/ui";
 import { api, errorMessage } from "../services/api";
 import { useDownloads } from "../stores/downloads";
 import { toastError, toastInfo } from "../stores/toast";
-import type { AppSettings, BrowserStatus, ConnectionTest, MediaToolsInfo, SettingsView } from "../types";
+import { ACCENTS, type Accent, type AppSettings, type BrowserStatus, ConnectionTest, MediaToolsInfo, NetworkInfo, SettingsView } from "../types";
 import { date } from "../utils/format";
 
-const TABS = ["General", "Downloads", "Browser", "Network", "Security", "Advanced"] as const;
+const TABS = ["General", "Downloads", "Browser", "Video", "AI models", "Network", "Security", "Advanced"] as const;
+const ACCENT_COLOURS: Record<Accent, string> = { blue: "#005fb8", teal: "#00747a", green: "#107c10", amber: "#a75c00", red: "#c42b1c", graphite: "#4c4c4c" };
 type Tab = (typeof TABS)[number];
 
 const list = (v: string[]) => v.join("\n");
@@ -61,7 +62,7 @@ export function SettingsPage() {
   const save = async () => {
     setError(null);
     try {
-      const { hasProxyPassword: _, ...settings } = draft;
+      const { hasProxyPassword: _, hasHfToken: _h, packaged: _p, ...settings } = draft;
       setSettings(await api.saveSettings(settings));
       toastInfo("Settings saved");
     } catch (e) {
@@ -98,6 +99,23 @@ export function SettingsPage() {
                     <option value="dark">Dark</option>
                   </select>
                 </Field>
+                <fieldset>
+                  <legend className="mb-1.5 text-[12px] text-fg-2">Accent colour</legend>
+                  <div className="flex gap-2">
+                    {ACCENTS.map((a) => (
+                      <button
+                        key={a}
+                        type="button"
+                        aria-label={a}
+                        aria-pressed={draft.accent === a}
+                        title={a[0]!.toUpperCase() + a.slice(1)}
+                        onClick={() => set("accent", a)}
+                        className={`h-7 w-7 rounded-full border-2 ${draft.accent === a ? "border-fg" : "border-transparent"}`}
+                        style={{ background: ACCENT_COLOURS[a] }}
+                      />
+                    ))}
+                  </div>
+                </fieldset>
                 <Field label="Default download folder">
                   <div className="flex gap-2">
                     <input className={inputCls} value={draft.downloadDir} onChange={(e) => set("downloadDir", e.target.value)} spellCheck={false} />
@@ -112,17 +130,27 @@ export function SettingsPage() {
                 <Check checked={draft.notifications} onChange={(v) => set("notifications", v)}>
                   Show Windows notifications when downloads finish or fail
                 </Check>
-                <Check checked={draft.startWithWindows} onChange={(v) => set("startWithWindows", v)} hint="Starts in the tray so scheduled downloads and the browser extension work">
-                  Start Gale when I sign in to Windows
-                </Check>
+                {draft.packaged ? (
+                  <p className="text-[12px] text-fg-3">Gale starts in the tray when you sign in. To change this, open Windows Settings → Apps → Startup.</p>
+                ) : (
+                  <Check checked={draft.startWithWindows} onChange={(v) => set("startWithWindows", v)} hint="Starts in the tray so scheduled downloads and the browser extension work">
+                    Start Gale when I sign in to Windows
+                  </Check>
+                )}
                 <Check checked={draft.showProgressWindow} onChange={(v) => set("showProgressWindow", v)} hint="A small window per download with speed, time left and connections">
                   Show a progress window when a download starts
                 </Check>
                 <Check checked={draft.closeWindowWhenDone} onChange={(v) => set("closeWindowWhenDone", v)} hint="Otherwise it stays open with Open / Open folder buttons">
                   Close the progress window automatically when the download finishes
                 </Check>
+                <Check checked={draft.checkUpdates} onChange={(v) => set("checkUpdates", v)} hint="One request to GitHub when Gale starts; nothing about you is sent">
+                  Tell me when a new version of Gale is available
+                </Check>
                 <Check checked={draft.autoResume} onChange={(v) => set("autoResume", v)} hint="Also retries a few times when a download fails because the connection dropped">
                   Resume unfinished downloads automatically when Gale starts
+                </Check>
+                <Check checked={draft.clipboardWatch} onChange={(v) => set("clipboardWatch", v)} hint="When you copy a download link anywhere, Gale offers to download it. Nothing is read while this is off.">
+                  Watch the clipboard for download links
                 </Check>
                 <Check checked={draft.minimizeToTray} onChange={(v) => set("minimizeToTray", v)} hint="Downloads keep running; quit from the tray icon">
                   Closing the window keeps Gale running in the tray
@@ -148,6 +176,24 @@ export function SettingsPage() {
               </>
             )}
             {tab === "Browser" && <BrowserTab draft={draft} set={set} />}
+            {tab === "Video" && (
+              <>
+                <Check checked={draft.videoSubtitles} onChange={(v) => set("videoSubtitles", v)} hint="The video's own subtitles in every language it has, inside the file (not automatic captions)">
+                  Add subtitles to videos
+                </Check>
+                <Check checked={draft.videoChapters} onChange={(v) => set("videoChapters", v)} hint="Players show the chapter list">
+                  Add chapters to videos and audio
+                </Check>
+                <Check
+                  checked={draft.sponsorblock}
+                  onChange={(v) => set("sponsorblock", v)}
+                  hint="Cuts sponsor, self-promotion and subscribe reminders, using the community SponsorBlock list. The video's id is sent to sponsor.ajay.app."
+                >
+                  Remove sponsor segments (YouTube)
+                </Check>
+              </>
+            )}
+            {tab === "AI models" && <ModelsTab draft={draft} set={set} onTokenChange={(has) => setSettings({ ...saved!, hasHfToken: has })} />}
             {tab === "Network" && <NetworkTab draft={draft} set={set} onPasswordChange={(has) => setSettings({ ...saved!, hasProxyPassword: has })} />}
             {tab === "Security" && (
               <>
@@ -200,7 +246,10 @@ function BrowserTab({ draft, set }: { draft: SettingsView; set: SetFn }) {
           {status?.lastContact ? `Last download from the browser: ${date(status.lastContact)} · ${status.intercepted} taken over so far` : "No downloads received from the browser yet."}
         </p>
         <p className="mt-2 text-[12px] text-fg-3">
-          To connect Chrome or Edge, open “Install browser extension” in the Gale Start menu folder and follow the three steps. Which file types and sizes get taken over is set in the extension's options.
+          {navigator.userAgent.includes("Windows")
+            ? "To connect Chrome or Edge, open “Install browser extension” in the Gale Start menu folder and follow the three steps."
+            : "To connect Chrome, Chromium, Edge or Brave, unzip Gale-Chrome-Extension from the release page, open the browser's Extensions page, turn on Developer mode, choose Load unpacked and pick that folder. Start Gale once before the browser so it can register itself."}{" "}
+          Which file types and sizes get taken over is set in the extension's options.
         </p>
       </div>
       <Check checked={draft.browserEnabled} onChange={(v) => set("browserEnabled", v)}>
@@ -220,6 +269,7 @@ function NetworkTab({ draft, set, onPasswordChange }: { draft: SettingsView; set
   const proxy = draft.proxyKind !== "none";
   return (
     <>
+      <Networks draft={draft} set={set} />
       <Field label="Proxy">
         <select className={inputCls} value={draft.proxyKind} onChange={(e) => set("proxyKind", e.target.value as AppSettings["proxyKind"])}>
           <option value="none">No proxy</option>
@@ -390,6 +440,88 @@ function AdvancedTab({ onReset }: { onReset: (s: SettingsView) => void }) {
           )}
         </div>
       </section>
+    </>
+  );
+}
+
+/** Several internet connections at once (Ethernet + Wi-Fi + a second Wi-Fi adapter or phone tethering). */
+function Networks({ draft, set }: { draft: SettingsView; set: SetFn }) {
+  const [list, setList] = useState<NetworkInfo[] | null>(null);
+  const load = () => api.listNetworks().then(setList, () => setList([]));
+  useEffect(() => void load(), []);
+  const chosen = new Set(draft.networks);
+  const toggle = (id: string, on: boolean) => set("networks", on ? [...draft.networks.filter((n) => n !== id), id] : draft.networks.filter((n) => n !== id));
+  const missing = draft.networks.filter((n) => list && !list.some((l) => l.id === n));
+  return (
+    <div className="mb-5">
+      <div className="mb-1 text-[13px] font-medium text-fg">Use several internet connections together</div>
+      <p className="mb-2 text-[12px] text-fg-3">
+        Tick two or more. Each download's connections take turns over them, so the speeds add up; if one drops, its parts move to the others. Works for
+        downloads with several connections, not for videos or torrents.
+      </p>
+      {list === null ? (
+        <p className="text-[12px] text-fg-3">Looking for connections…</p>
+      ) : list.length === 0 ? (
+        <p className="text-[12px] text-fg-3">No connected networks found.</p>
+      ) : (
+        <div className="space-y-1">
+          {list.map((n) => (
+            <label key={n.id} className="flex items-center gap-2 text-[13px]">
+              <input type="checkbox" checked={chosen.has(n.id)} onChange={(e) => toggle(n.id, e.target.checked)} />
+              <span className="text-fg">{n.name}</span>
+              <span className="text-fg-3">
+                {n.kind} · {n.address}
+              </span>
+            </label>
+          ))}
+          {missing.map((n) => (
+            <label key={n} className="flex items-center gap-2 text-[13px] text-fg-3">
+              <input type="checkbox" checked onChange={() => toggle(n, false)} />
+              {n} (not connected now)
+            </label>
+          ))}
+        </div>
+      )}
+      <div className="mt-1 flex items-center gap-3">
+        <button className="text-[12px] text-accent hover:underline" onClick={() => void load()}>
+          Refresh list
+        </button>
+        {draft.networks.length === 1 && <span className="text-[12px] text-warn">Pick at least two, or none for the normal connection.</span>}
+      </div>
+    </div>
+  );
+}
+
+function ModelsTab({ draft, set, onTokenChange }: { draft: SettingsView; set: <K extends keyof AppSettings>(k: K, v: AppSettings[K]) => void; onTokenChange: (has: boolean) => void }) {
+  const [token, setToken] = useState("");
+  return (
+    <>
+      <Field
+        label={draft.hasHfToken ? "Hugging Face access token (saved — type to replace)" : "Hugging Face access token"}
+        hint="Needed only for gated or private models. Create a read token at huggingface.co → Settings → Access Tokens. Kept in the system keychain and sent only to Hugging Face."
+      >
+        <div className="flex gap-2">
+          <input type="password" className={inputCls} value={token} placeholder="hf_…" onChange={(e) => setToken(e.target.value.trim())} autoComplete="off" spellCheck={false} />
+          <Button
+            disabled={!token && !draft.hasHfToken}
+            onClick={() =>
+              api.setHfToken(token || null).then(() => {
+                onTokenChange(!!token);
+                setToken("");
+                toastInfo(token ? "Token saved to the system keychain" : "Token removed");
+              }, toastError)
+            }
+          >
+            {token ? "Save" : "Remove"}
+          </Button>
+        </div>
+      </Field>
+      <Field label="Download from" hint="hf-mirror.com is a public mirror for places where huggingface.co is slow or blocked.">
+        <select className={inputCls} value={draft.hfEndpoint} onChange={(e) => set("hfEndpoint", e.target.value)}>
+          <option value="https://huggingface.co">huggingface.co</option>
+          <option value="https://hf-mirror.com">hf-mirror.com (mirror)</option>
+        </select>
+      </Field>
     </>
   );
 }

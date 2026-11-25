@@ -14,15 +14,23 @@ New product → **MSI or EXE app**. Registering as an individual developer is fr
      cloud HSM.
    - Microsoft's own documentation lists Azure Artifact Signing as *not* eligible for Store MSI/EXE submissions.
 
-   Signing also removes the SmartScreen "unknown publisher" warning for people who download the MSI from GitHub.
-   `build-msi.sh` produces unsigned files; sign the binaries in `target/msi-stage` before `wixl` runs, then sign the
-   finished MSI (`signtool sign /fd sha256 /tr <timestamp-url> /td sha256 …`).
+   Signing shows "Muhammad Faizan" as the verified publisher. SmartScreen warnings then fade as the signed files
+   build up download reputation; no certificate type removes them instantly any more.
+
+   How to sign:
+   - **Certificate as a .pfx file** (or SignPath output): build with
+     `SIGN_PFX=cert.pfx SIGN_PASS=… scripts/installer/build-msi.sh`. It signs gale.exe, gale-nmh.exe, yt-dlp.exe,
+     ffmpeg.exe and ffprobe.exe inside the MSI, then the MSI and the setup .exe, all with an RFC 3161 timestamp.
+   - **USB token or cloud certificate (Certum SimplySign and similar)**: on Windows, run
+     `scripts\installer\sign-windows.cmd 0.7.0` in the folder with the built files. It signs the setup .exe and the
+     MSI with `signtool` and rewrites their `.sha256` files. That covers SmartScreen; for the Microsoft Store the
+     files inside the MSI must be signed too, which needs the build-time option.
 
 2. **Host the MSI at a versioned HTTPS address that never changes.** Use the GitHub release asset:
-   `https://github.com/faizzyhon/Gale/releases/download/v0.5.0/Gale_0.5.0_x64.msi`
+   `https://github.com/faizzyhon/Gale/releases/download/v0.7.0/Gale_0.7.0_x64.msi`
    Each update needs a new release and a new URL.
 
-3. **Silent install.** The MSI installs silently with the standard `msiexec /i Gale_0.5.0_x64.msi /qn`. It installs
+3. **Silent install.** The MSI installs silently with the standard `msiexec /i Gale_0.7.0_x64.msi /qn`. It installs
    for all users, so Windows shows one UAC prompt, which the policy allows. No extra parameters are needed in
    Partner Center for an MSI.
 
@@ -67,7 +75,7 @@ Choose category **Utility / productivity / communication / other**, then answer 
 | Product name | Gale Download Manager |
 | Short description | "Short description" in listing.md |
 | Description | "Long description" in listing.md (leave out the extension download line) |
-| What's new in this version | "What's new in 0.5.0" in listing.md |
+| What's new in this version | "What's new in 0.7.0" in listing.md |
 | Product features (up to 20) | lines from "Feature list" in listing.md |
 | Screenshots | `assets/microsoft/screenshot-1…5.png` (1920×1080) |
 | Store logo (1:1) | `assets/microsoft/store-logo-300x300.png` |
@@ -98,12 +106,12 @@ YouTube in a store build) can be applied to the app as well.
 
 # winget (Windows Package Manager)
 
-Manifests are in [winget/](winget/). After the v0.5.0 GitHub release exists with `Gale_0.5.0_x64.msi` attached:
+Manifests are in [winget/](winget/). After the v0.7.0 GitHub release exists with `Gale_0.7.0_x64.msi` attached:
 
-1. Check `InstallerSha256` matches the uploaded file (`certutil -hashfile Gale_0.5.0_x64.msi SHA256`).
-2. Validate: `winget validate --manifest docs\store\winget\0.5.0`
-3. Test: `winget install --manifest docs\store\winget\0.5.0`
-4. Submit with `wingetcreate submit docs\store\winget\0.5.0` (or open a pull request to
-   https://github.com/microsoft/winget-pkgs under `manifests/m/MuhammadFaizan/Gale/0.5.0/`).
+1. Check `InstallerSha256` matches the uploaded file (`certutil -hashfile Gale_0.7.0_x64.msi SHA256`).
+2. Validate: `winget validate --manifest docs\store\winget\0.7.0`
+3. Test: `winget install --manifest docs\store\winget\0.7.0`
+4. Submit with `wingetcreate submit docs\store\winget\0.7.0` (or open a pull request to
+   https://github.com/microsoft/winget-pkgs under `manifests/m/MuhammadFaizan/Gale/0.7.0/`).
 
 winget does not require code signing, but unsigned installers can be held for extra review.

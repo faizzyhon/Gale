@@ -61,6 +61,7 @@ pub struct Manager {
     client: Mutex<reqwest::Client>,
     events: Arc<dyn EventSink>,
     running: Mutex<HashMap<i64, CancellationToken>>,
+    hf_token: Mutex<Option<String>>,
     headers: Mutex<HashMap<i64, RequestHeaders>>,
     slots: Arc<Semaphore>,
     pump_lock: tokio::sync::Mutex<()>,
@@ -81,6 +82,23 @@ pub struct Manager {
 const AUTO_RETRIES: u32 = 5;
 
 impl Manager {
+    /// The Hugging Face access token (from the system keychain). Sent only to Hugging Face, never stored.
+    pub fn set_hf_token(&self, token: Option<String>) {
+        *self.hf_token.lock().unwrap() = token.filter(|t| !t.trim().is_empty());
+    }
+
+    /// The download's own headers, plus the Hugging Face token for Hugging Face addresses (also after a restart).
+    fn headers_for(&self, id: i64, url: &url::Url) -> RequestHeaders {
+        let mut h = self.headers.lock().unwrap().get(&id).cloned().unwrap_or_default();
+        let hf = url.scheme() == "https" && url.host_str().is_some_and(|host| crate::hf::TOKEN_HOSTS.contains(&host));
+        if hf && !h.0.iter().any(|(k, _)| k.eq_ignore_ascii_case("authorization")) {
+            if let Some(t) = self.hf_token.lock().unwrap().clone() {
+                h.0.push(("Authorization".into(), format!("Bearer {t}")));
+            }
+        }
+        h
+    }
+
     pub fn new(db: Db, cfg: EngineConfig, max_simultaneous: usize, events: Arc<dyn EventSink>) -> Result<Arc<Self>> {
         let client = engine::build_client(&cfg)?;
         Ok(Arc::new(Self {
@@ -90,6 +108,7 @@ impl Manager {
             events,
             running: Mutex::new(HashMap::new()),
             headers: Mutex::new(HashMap::new()),
+            hf_token: Mutex::new(None),
             slots: Arc::new(Semaphore::new(max_simultaneous.max(1))),
             pump_lock: tokio::sync::Mutex::new(()),
             pump_now: tokio::sync::Notify::new(),
@@ -162,8 +181,48 @@ impl Manager {
     pub async fn recheck(&self, id: i64) -> Result<engine::ProbeResult> {
         let d = self.db.get_download(id).await?;
         let client = self.client.lock().unwrap().clone();
-        let headers = self.headers.lock().unwrap().get(&id).cloned().unwrap_or_default();
-        engine::probe(&client, &validate_url(&d.url)?, &headers, None).await
+        let url = validate_url(&d.url)?;
+        engine::probe(&client, &url, &self.headers_for(id, &url), None).await
+    }
+
+    /// "Refresh download address": points a paused or failed download at a new link (an expired signed link, another
+    /// mirror) and keeps what is already downloaded. Refused unless the new link serves a file of the same size, so a
+    /// different file can never be spliced into the partial one. `headers` replaces the cookies/referrer when the new
+    /// link came from the browser.
+    pub async fn refresh_url(self: &Arc<Self>, id: i64, new_url: &str, headers: Option<RequestHeaders>, start: bool) -> Result<()> {
+        let d = self.db.get_download(id).await?;
+        if d.kind != "http" {
+            return Err(Error::InvalidState("only file downloads have an address to refresh; videos and torrents find theirs again by themselves".into()));
+        }
+        if d.status == DownloadStatus::Completed {
+            return Err(Error::InvalidState("this download is already complete".into()));
+        }
+        let url = validate_url(new_url)?;
+        if let Some(other) = self.db.find_unfinished_by_url(url.as_str()).await?.filter(|o| *o != id) {
+            return Err(Error::InvalidState(format!("this address is already in the list (download #{other})")));
+        }
+        let client = self.client.lock().unwrap().clone();
+        let h = headers.clone().unwrap_or_else(|| self.headers.lock().unwrap().get(&id).cloned().unwrap_or_default());
+        let p = engine::probe(&client, &url, &h, Some(&d.file_name)).await?;
+        match (d.total_bytes.map(|t| t as u64), p.total) {
+            (Some(old), Some(new)) if old != new => {
+                return Err(Error::InvalidState(format!("the new address is a different file ({new} bytes, this download is {old} bytes)")));
+            }
+            (Some(_), None) => return Err(Error::InvalidState("the new address does not tell the file size, so Gale cannot check it is the same file".into())),
+            _ => {}
+        }
+        self.stop_and_wait(id).await?;
+        if let Some(h) = headers {
+            self.headers.lock().unwrap().insert(id, h);
+        }
+        // The new link's validators become the reference, so the next start resumes instead of starting over.
+        self.db.refresh_address(id, url.as_str(), p.final_url.as_str(), p.etag.as_deref(), p.last_modified.as_deref()).await?;
+        tracing::info!(id, "download address refreshed");
+        self.notify(id).await;
+        if start {
+            self.start(id).await?;
+        }
+        Ok(())
     }
 
     pub fn is_running(&self, id: i64) -> bool {
@@ -332,8 +391,8 @@ impl Manager {
         let client = self.client.lock().unwrap().clone();
         let mut cfg = self.cfg.lock().unwrap().clone();
         cfg.connections = d.connections.clamp(1, 32) as u8;
-        let headers = self.headers.lock().unwrap().get(&id).cloned().unwrap_or_default();
         let url = validate_url(&d.url)?;
+        let headers = self.headers_for(id, &url);
         let probe = tokio::select! {
             p = engine::probe(&client, &url, &headers, Some(&d.file_name)) => p?,
             _ = token.cancelled() => return self.after_cancel(id).await,
@@ -408,6 +467,8 @@ impl Manager {
             })
         };
 
+        // The parts are fetched from the address after redirects; cookies and tokens stay with the site they belong to.
+        let headers = if engine::same_site(&url, &probe.final_url) { headers } else { headers.without_credentials() };
         let job = Job { probe, headers, temp_path, final_path, segments, expected_sha256: d.expected_sha256.clone() };
         let outcome = engine::run(&client, &cfg, job, token, on_tick).await;
         let _ = persister.await;
@@ -479,6 +540,7 @@ impl Manager {
             concurrent_fragments: d.connections.clamp(1, 16) as u8,
             expected_bytes,
             net: self.media_net(),
+            extras: self.cfg.lock().unwrap().media_extras,
         };
         let outcome = media::download(&tools, &job, &token, &on_progress).await;
         drop(on_progress); // closes the watch channel so the persister exits
@@ -499,8 +561,8 @@ impl Manager {
     /// Downloads a .torrent file with the same client, proxy and browser cookies as any other download.
     async fn fetch_torrent_file(&self, id: i64, url: &str) -> Result<bytes::Bytes> {
         let client = self.client.lock().unwrap().clone();
-        let headers = self.headers.lock().unwrap().get(&id).cloned().unwrap_or_default();
-        let mut resp = client.get(validate_url(url)?).headers(headers.to_map()).send().await?;
+        let url = validate_url(url)?;
+        let mut resp = client.get(url.clone()).headers(self.headers_for(id, &url).to_map()).send().await?;
         if !resp.status().is_success() {
             return Err(Error::Http { status: resp.status().as_u16() });
         }

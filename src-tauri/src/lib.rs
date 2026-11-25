@@ -1,4 +1,6 @@
 pub mod startup;
+pub mod update;
+mod clipboard;
 mod commands;
 mod native_messaging;
 mod settings;
@@ -46,6 +48,8 @@ pub struct AppState {
     pub shutdown: Mutex<Option<CancellationToken>>,
     /// Downloads the user just started; their progress window opens when they become active.
     pub window_wanted: Mutex<HashSet<i64>>,
+    /// A download waiting for a fresh address from the browser: the next caught download of the same size goes to it.
+    pub refreshing: Mutex<Option<(i64, std::time::Instant)>>,
     quitting: AtomicBool,
 }
 
@@ -337,6 +341,7 @@ pub fn run() {
                 let cfg = s.engine_config(&global, &hosts);
                 let m = Manager::new(db, cfg, s.max_simultaneous as usize, Arc::new(TauriEvents(handle.clone())))?;
                 m.set_auto_retry(s.auto_resume);
+                m.set_hf_token(settings::hf_token());
                 Ok::<_, gale_core::Error>((m, s, recovered))
             })?;
             // yt-dlp/FFmpeg ship in tools/ next to gale.exe; without them only video downloads are unavailable.
@@ -344,7 +349,25 @@ pub fn run() {
             let user_tools = handle.path().app_local_data_dir().ok().map(|d| d.join("tools"));
             match gale_core::media::MediaTools::locate(exe_dir.as_deref(), user_tools.as_deref()) {
                 Ok(t) => manager.set_media_tools(Some(t)),
-                Err(e) => tracing::warn!(error = %e, "video downloads unavailable"),
+                Err(e) => {
+                    tracing::warn!(error = %e, "video downloads unavailable");
+                    // Linux/macOS: yt-dlp is not bundled; fetch it once in the background (FFmpeg comes from the system).
+                    #[cfg(not(windows))]
+                    if let (gale_core::Error::ToolMissing(name), Some(dir)) = (&e, user_tools.clone()) {
+                        if name == "yt-dlp" {
+                            let (m, exe_dir) = (manager.clone(), exe_dir.clone());
+                            tauri::async_runtime::spawn(async move {
+                                match gale_core::media::install_ytdlp(&dir).await {
+                                    Ok(_) => match gale_core::media::MediaTools::locate(exe_dir.as_deref(), Some(&dir)) {
+                                        Ok(t) => m.set_media_tools(Some(t)),
+                                        Err(e) => tracing::warn!(error = %e, "video downloads still unavailable"),
+                                    },
+                                    Err(e) => tracing::warn!(error = %e, "could not download yt-dlp"),
+                                }
+                            });
+                        }
+                    }
+                }
             }
             tauri::async_runtime::spawn({
                 let m = manager.clone();
@@ -368,6 +391,7 @@ pub fn run() {
                 grabs: Mutex::new(HashMap::new()),
                 shutdown: Mutex::new(None),
                 window_wanted: Mutex::new(HashSet::new()),
+                refreshing: Mutex::new(None),
                 quitting: AtomicBool::new(false),
             });
 
@@ -393,7 +417,7 @@ pub fn run() {
             // Keep the startup entry in sync with settings (an upgrade or a moved install may have dropped it).
             {
                 use tauri_plugin_autostart::ManagerExt;
-                let want = app.state::<AppState>().settings().start_with_windows;
+                let want = app.state::<AppState>().settings().start_with_windows && !startup::is_packaged() && !startup::is_portable();
                 let al = handle.autolaunch();
                 if want {
                     if !al.is_enabled().unwrap_or(false) {
@@ -402,6 +426,21 @@ pub fn run() {
                     startup::write_run_entry(); // quoted path of this exe (Program Files has a space)
                 }
             }
+            // One look at GitHub per start, after things settle; the UI shows a banner when there is something new.
+            if app.state::<AppState>().settings().check_updates && !startup::is_packaged() {
+                let h = handle.clone();
+                tauri::async_runtime::spawn(async move {
+                    tokio::time::sleep(std::time::Duration::from_secs(20)).await;
+                    match update::check().await {
+                        Ok(u) if u.newer => {
+                            let _ = h.emit("update://available", &u);
+                        }
+                        Ok(_) => {}
+                        Err(e) => tracing::info!(error = %e, "update check failed"),
+                    }
+                });
+            }
+            clipboard::watch(handle.clone());
             build_tray(&handle)?;
             if !background {
                 show_main(&handle);
@@ -437,6 +476,11 @@ pub fn run() {
             commands::get_settings,
             commands::save_settings,
             commands::set_proxy_password,
+            commands::hf_search,
+            commands::hf_list,
+            commands::hf_folders,
+            commands::hf_download,
+            commands::set_hf_token,
             commands::test_connection,
             commands::list_queues,
             commands::save_queue,
@@ -464,6 +508,12 @@ pub fn run() {
             commands::probe_pending,
             commands::show_main_window,
             commands::open_link,
+            commands::refresh_url,
+            commands::list_networks,
+            commands::check_update,
+            commands::open_release_url,
+            commands::install_update,
+            commands::refresh_from_browser,
             commands::media_tools_info,
             commands::update_ytdlp,
         ])

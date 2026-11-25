@@ -37,13 +37,15 @@
         <File Id="GaleExe" Name="gale.exe" Source="$(var.Src)/gale.exe" />
         <File Id="NmhExe" Name="gale-nmh.exe" Source="$(var.Src)/gale-nmh.exe" />
         <File Id="NmhManifest" Name="com.gale.nmh.json" Source="$(var.Src)/com.gale.nmh.json" />
+        <File Id="NmhManifestFirefox" Name="com.gale.nmh.firefox.json" Source="$(var.Src)/com.gale.nmh.firefox.json" />
         <File Id="ExtGuide" Name="Install browser extension.html" Source="$(var.Src)/Install browser extension.html" />
         <RemoveFolder Id="RmInstallDir" On="uninstall" />
       </Component>
-      <!-- Chrome and Edge find the native messaging host through these keys (all users). -->
+      <!-- Chrome, Edge and Firefox find the native messaging host through these keys (all users). -->
       <Component Id="NativeHostRegistration" Guid="3301e8ee-7d73-4def-b153-152b895a826c">
         <RegistryValue Root="HKLM" Key="Software\Google\Chrome\NativeMessagingHosts\com.gale.nmh" Type="string" Value="[INSTALLDIR]com.gale.nmh.json" KeyPath="yes" />
         <RegistryValue Root="HKLM" Key="Software\Microsoft\Edge\NativeMessagingHosts\com.gale.nmh" Type="string" Value="[INSTALLDIR]com.gale.nmh.json" />
+        <RegistryValue Root="HKLM" Key="Software\Mozilla\NativeMessagingHosts\com.gale.nmh" Type="string" Value="[INSTALLDIR]com.gale.nmh.firefox.json" />
       </Component>
     </DirectoryRef>
 

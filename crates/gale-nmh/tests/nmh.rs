@@ -11,9 +11,15 @@ use tokio::process::{Child, Command as Proc};
 const ORIGIN: &str = "chrome-extension://abiednbonckeaneafpemajipbefdfblo/";
 
 fn spawn(dir: &std::path::Path, origin: &str) -> Child {
+    spawn_expecting(dir, origin, std::env::current_exe().unwrap())
+}
+
+/// `server`: the program the helper accepts as Gale (on Linux it checks the socket owner's executable).
+fn spawn_expecting(dir: &std::path::Path, origin: &str, server: std::path::PathBuf) -> Child {
     Proc::new(env!("CARGO_BIN_EXE_gale-nmh"))
         .arg(origin)
         .env("GALE_DATA_DIR", dir)
+        .env("GALE_SERVER_EXE", server)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
@@ -58,6 +64,12 @@ async fn relays_valid_messages_and_rejects_bad_ones() {
     let r = ask(&mut c, r#"{"v":1,"id":"y","cmd":"add_download","payload":{"url":"file:///etc/passwd"}}"#).await;
     assert_eq!(r.error.unwrap().code, "invalid");
 
+    #[cfg(target_os = "linux")]
+    {
+        let mut c = spawn_expecting(&dir, ORIGIN, "/usr/bin/true".into());
+        assert!(!ask(&mut c, r#"{"v":1,"id":"p2","cmd":"ping"}"#).await.ok, "a socket owned by another program is refused");
+    }
+
     let seen = seen.lock().unwrap();
     assert_eq!(seen.len(), 2, "only valid requests reach the app");
     assert_eq!(seen[0].origin, ORIGIN);
@@ -72,4 +84,41 @@ async fn unknown_extension_is_refused() {
     let mut c = spawn(&dir, "chrome-extension://evilevilevilevilevilevilevilevil/");
     let status = c.wait().await.unwrap();
     assert_eq!(status.code(), Some(1));
+}
+
+/// Firefox starts the helper with the manifest path and then the add-on id (not a chrome-extension:// origin).
+#[tokio::test]
+async fn firefox_add_on_is_accepted() {
+    let dir = std::env::temp_dir().join(format!("gale-nmh-ff-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let token = ipc::write_token(&dir).unwrap();
+    let handler: Handler = Arc::new(move |env: Envelope| Box::pin(async move { Response::ok(&env.request.id, serde_json::json!({"origin": env.origin})) }));
+    tokio::spawn(ipc::serve(ipc::endpoint(&dir), token, handler));
+    tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+
+    let mut c = Proc::new(env!("CARGO_BIN_EXE_gale-nmh"))
+        .args(["/usr/lib/mozilla/native-messaging-hosts/com.gale.nmh.json", "gale@faizzyhon.com"])
+        .env("GALE_DATA_DIR", &dir)
+        .env("GALE_SERVER_EXE", std::env::current_exe().unwrap())
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .kill_on_drop(true)
+        .spawn()
+        .unwrap();
+    let r = ask(&mut c, r#"{"v":1,"id":"f1","cmd":"ping"}"#).await;
+    assert!(r.ok, "{r:?}");
+
+    // Another Firefox add-on id is refused like an unknown Chrome extension.
+    let mut other = Proc::new(env!("CARGO_BIN_EXE_gale-nmh"))
+        .args(["/x/com.gale.nmh.json", "evil@example.com"])
+        .env("GALE_DATA_DIR", &dir)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .kill_on_drop(true)
+        .spawn()
+        .unwrap();
+    assert!(!other.wait().await.unwrap().success());
+    let _ = std::fs::remove_dir_all(&dir);
 }

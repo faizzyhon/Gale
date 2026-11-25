@@ -5,6 +5,27 @@
 #[cfg_attr(not(windows), allow(dead_code))]
 const UPGRADE_CODE: &str = "{832F8633-BF40-4C8B-A0DD-40BAAD025CD2}";
 
+/// True for the portable ZIP (a `portable.txt` next to gale.exe): Gale then never adds itself to Windows startup on
+/// its own and never removes other installs; the user can still turn "start with Windows" on in Settings.
+pub fn is_portable() -> bool {
+    std::env::current_exe().ok().and_then(|e| Some(e.parent()?.join("portable.txt"))).is_some_and(|p| p.is_file())
+}
+
+/// True when Gale runs from the Microsoft Store (MSIX) package. Windows then owns installing, updating, removing
+/// and "start with Windows" (the package's StartupTask), so the MSI-era housekeeping is skipped.
+pub fn is_packaged() -> bool {
+    #[cfg(windows)]
+    {
+        use windows_sys::Win32::Storage::Packaging::Appx::GetCurrentPackageFullName;
+        let mut len = 0u32;
+        // SAFETY: a null buffer with length 0 only asks for the required size.
+        // APPMODEL_ERROR_NO_PACKAGE (15700) means an ordinary, unpackaged process.
+        return unsafe { GetCurrentPackageFullName(&mut len, std::ptr::null_mut()) } != 15700;
+    }
+    #[cfg(not(windows))]
+    false
+}
+
 /// Value for HKCU\…\Run\Gale. Quoted, because "C:\Program Files\…" contains a space.
 pub fn run_command(exe: &str) -> String {
     format!("\"{exe}\" --background")
@@ -22,6 +43,9 @@ pub fn write_run_entry() {
 #[cfg_attr(not(windows), allow(dead_code))]
 pub const NATIVE_HOST_KEYS: [&str; 2] =
     [r"Software\Google\Chrome\NativeMessagingHosts\com.gale.nmh", r"Software\Microsoft\Edge\NativeMessagingHosts\com.gale.nmh"];
+/// Firefox reads its own key and a manifest that names the add-on id instead of an origin.
+#[cfg_attr(not(windows), allow(dead_code))]
+pub const FIREFOX_HOST_KEY: &str = r"Software\Mozilla\NativeMessagingHosts\com.gale.nmh";
 
 /// Points Chrome and Edge at the helper next to this exe, for the current user. Leftovers from another
 /// install (an old per-user build) would otherwise make the browser talk to a helper that trusts a different Gale.
@@ -31,7 +55,65 @@ pub fn register_native_host() {
         for key in NATIVE_HOST_KEYS {
             imp::set_default(key, &manifest.display().to_string());
         }
+        let firefox = manifest.with_file_name("com.gale.nmh.firefox.json");
+        if firefox.is_file() {
+            imp::set_default(FIREFOX_HOST_KEY, &firefox.display().to_string());
+        }
     }
+    #[cfg(not(windows))]
+    if let (Some(home), Some(helper)) = (dirs_home(), std::env::current_exe().ok().and_then(|e| Some(e.parent()?.join("gale-nmh"))).filter(|h| h.is_file())) {
+        let json = unix_manifest(&helper);
+        let firefox = unix_firefox_manifest(&helper);
+        for dir in unix_host_dirs(&home) {
+            // Only browsers that are installed (their profile folder exists) get the file.
+            if dir.parent().is_some_and(|p| p.is_dir()) {
+                let body = if dir.components().any(|c| c.as_os_str() == ".mozilla" || c.as_os_str() == "Mozilla") { &firefox } else { &json };
+                let _ = std::fs::create_dir_all(&dir).and_then(|_| std::fs::write(dir.join("com.gale.nmh.json"), body));
+            }
+        }
+    }
+}
+
+#[cfg(not(windows))]
+fn dirs_home() -> Option<std::path::PathBuf> {
+    std::env::var_os("HOME").map(std::path::PathBuf::from)
+}
+
+/// Where Chrome, Chromium, Edge and Brave look for native messaging hosts of the current user.
+#[cfg(not(windows))]
+pub fn unix_host_dirs(home: &std::path::Path) -> Vec<std::path::PathBuf> {
+    let roots: &[&str] = if cfg!(target_os = "macos") {
+        &[
+            "Library/Application Support/Google/Chrome",
+            "Library/Application Support/Chromium",
+            "Library/Application Support/Microsoft Edge",
+            "Library/Application Support/BraveSoftware/Brave-Browser",
+        ]
+    } else {
+        &[".config/google-chrome", ".config/chromium", ".config/microsoft-edge", ".config/BraveSoftware/Brave-Browser"]
+    };
+    let mut dirs: Vec<_> = roots.iter().map(|r| home.join(r).join("NativeMessagingHosts")).collect();
+    dirs.push(if cfg!(target_os = "macos") {
+        home.join("Library/Application Support/Mozilla/NativeMessagingHosts")
+    } else {
+        home.join(".mozilla/native-messaging-hosts")
+    });
+    dirs
+}
+
+#[cfg(not(windows))]
+pub fn unix_firefox_manifest(helper: &std::path::Path) -> String {
+    let mut v: serde_json::Value = serde_json::from_str(include_str!("../../scripts/installer/com.gale.nmh.firefox.json")).expect("bundled manifest");
+    v["path"] = serde_json::Value::String(helper.display().to_string());
+    serde_json::to_string_pretty(&v).unwrap()
+}
+
+/// The Windows manifest with an absolute helper path (Linux and macOS do not accept relative ones).
+#[cfg(not(windows))]
+pub fn unix_manifest(helper: &std::path::Path) -> String {
+    let mut v: serde_json::Value = serde_json::from_str(include_str!("../../scripts/installer/com.gale.nmh.json")).expect("bundled manifest");
+    v["path"] = serde_json::Value::String(helper.display().to_string());
+    serde_json::to_string_pretty(&v).unwrap()
 }
 
 /// Uninstalls any per-user Gale for this user, keeping their "start with Windows" choice.
@@ -186,6 +268,20 @@ mod imp {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    #[cfg(not(windows))]
+    fn unix_manifest_points_at_the_helper() {
+        let v: serde_json::Value = serde_json::from_str(&super::unix_manifest(std::path::Path::new("/opt/Gale/gale-nmh"))).unwrap();
+        assert_eq!(v["path"], "/opt/Gale/gale-nmh");
+        assert_eq!(v["name"], "com.gale.nmh");
+        assert!(v["allowed_origins"][0].as_str().unwrap().starts_with("chrome-extension://"));
+        let dirs = super::unix_host_dirs(std::path::Path::new("/home/u"));
+        assert!(dirs.iter().all(|d| d.ends_with("NativeMessagingHosts") || d.ends_with("native-messaging-hosts")));
+        let f: serde_json::Value = serde_json::from_str(&super::unix_firefox_manifest(std::path::Path::new("/opt/Gale/gale-nmh"))).unwrap();
+        assert_eq!(f["allowed_extensions"][0], "gale@faizzyhon.com");
+        assert_eq!(f["path"], "/opt/Gale/gale-nmh");
+    }
+
     #[test]
     fn run_command_quotes_paths_with_spaces() {
         assert_eq!(super::run_command(r"C:\Program Files\Gale\gale.exe"), r#""C:\Program Files\Gale\gale.exe" --background"#);

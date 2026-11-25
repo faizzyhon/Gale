@@ -1,8 +1,8 @@
 // The only module that talks to the Rust side.
 import { invoke } from "@tauri-apps/api/core";
-import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { emit, listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { open, save } from "@tauri-apps/plugin-dialog";
-import type {
+import type { NetworkInfo, UpdateInfo,
   AppNotification,
   AppSettings,
   BatchResult,
@@ -24,6 +24,8 @@ import type {
   SchedulerJob,
   SegmentState,
   SettingsView,
+  ModelInfo,
+  ModelSearchHit,
 } from "../types";
 
 export interface AddOptions {
@@ -51,6 +53,15 @@ export const api = {
   restart: (id: number) => invoke<void>("restart_download", { id }),
   remove: (id: number, deleteFile: boolean) => invoke<void>("remove_download", { id, deleteFile }),
   recheck: (id: number) => invoke<ProbeResult>("recheck_download", { id }),
+  checkUpdate: () => invoke<UpdateInfo>("check_update"),
+  installUpdate: (installer: string) => invoke<void>("install_update", { installer }),
+  onUpdate: (cb: (u: UpdateInfo) => void): Promise<UnlistenFn> => listen<UpdateInfo>("update://available", (e) => cb(e.payload)),
+  emitUpdate: (u: UpdateInfo) => void emit("update://available", u),
+  openUrl: (url: string) => invoke<void>("open_release_url", { url }),
+  listNetworks: () => invoke<NetworkInfo[]>("list_networks"),
+  refreshUrl: (id: number, url: string) => invoke<void>("refresh_url", { id, url }),
+  refreshFromBrowser: (id: number) => invoke<void>("refresh_from_browser", { id }),
+  onRefreshed: (cb: (id: number) => void): Promise<UnlistenFn> => listen<number>("download://refreshed", (e) => cb(e.payload)),
   open: (id: number) => invoke<void>("open_download", { id }),
   reveal: (id: number) => invoke<void>("reveal_download", { id }),
   segments: (id: number) => invoke<SegmentState[]>("get_download_segments", { id }),
@@ -59,6 +70,12 @@ export const api = {
   history: (limit?: number) => invoke<HistoryEntry[]>("list_history", { limit }),
 
   getSettings: () => invoke<SettingsView>("get_settings"),
+  hfSearch: (query: string) => invoke<ModelSearchHit[]>("hf_search", { query }),
+  hfList: (input: string) => invoke<ModelInfo>("hf_list", { input }),
+  hfFolders: () => invoke<{ downloads: string; lmStudio: string | null }>("hf_folders"),
+  hfDownload: (repo: string, revision: string, paths: string[], folder: string) =>
+    invoke<{ added: number; skipped: number }>("hf_download", { repo, revision, paths, folder }),
+  setHfToken: (token: string | null) => invoke<void>("set_hf_token", { token }),
   saveSettings: (settings: AppSettings) => invoke<SettingsView>("save_settings", { settings }),
   resetSettings: () => invoke<SettingsView>("reset_settings"),
   setProxyPassword: (password: string | null) => invoke<void>("set_proxy_password", { password }),

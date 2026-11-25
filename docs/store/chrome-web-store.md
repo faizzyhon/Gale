@@ -8,7 +8,7 @@ Listing text is in [listing.md](listing.md). This file has the store-specific fi
 cd browser-extension
 pnpm install
 pnpm run build:store          # → browser-extension/dist-store/
-cd dist-store && zip -r ../../Gale-Chrome-Web-Store-0.5.0.zip . && cd ../..
+cd dist-store && zip -r ../../Gale-Chrome-Web-Store-0.7.0.zip . && cd ../..
 ```
 
 The store build is the normal extension with two differences:
@@ -122,7 +122,7 @@ Leave everything else unticked. Then certify all three statements:
 
 # Microsoft Edge Add-ons
 
-Edge accepts the same package: upload `Gale-Chrome-Web-Store-0.5.0.zip` at
+Edge accepts the same package: upload `Gale-Chrome-Web-Store-0.7.0.zip` at
 https://partner.microsoft.com/dashboard/microsoftedge (free account). Use the same listing text, screenshots,
 category (Productivity), privacy policy URL and permission explanations as above. Edge also assigns its own ID — add
 it to `ALLOWED_ORIGINS` and `allowed_origins` as in step 2.

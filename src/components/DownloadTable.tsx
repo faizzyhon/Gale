@@ -6,13 +6,14 @@ import {
   ListOrdered,
   Pause,
   Play,
+  Link2,
   RefreshCw,
   RotateCcw,
   Square,
   Trash2,
   type LucideIcon,
 } from "lucide-react";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { canPause, canResume, useDownloadActions } from "../hooks/useDownloadActions";
 import { api } from "../services/api";
 import { useDownloads } from "../stores/downloads";
@@ -21,6 +22,7 @@ import type { Download } from "../types";
 import { bytes, date, eta, extension, speed } from "../utils/format";
 import { AnimatePresence, motion } from "framer-motion";
 import { ProgressBar } from "./motion";
+import { RefreshDialog } from "./dialogs";
 
 const STAGE_LABEL: Record<string, string> = {
   extracting: "Reading video info",
@@ -56,6 +58,8 @@ export function DownloadTable({ rows, onProperties, onRemove }: Props) {
   const act = useDownloadActions();
   const [selected, setSelected] = useState<number | null>(null);
   const [menu, setMenu] = useState<{ x: number; y: number; d: Download } | null>(null);
+  const [refreshing, setRefreshing] = useState<Download | null>(null);
+  const closeRefresh = useCallback(() => setRefreshing(null), []);
   const sel = rows.find((r) => r.id === selected) ?? null;
 
   useEffect(() => {
@@ -170,7 +174,8 @@ export function DownloadTable({ rows, onProperties, onRemove }: Props) {
         )}
       </div>
 
-      {menu && <ContextMenu {...menu} onClose={() => setMenu(null)} onProperties={onProperties} onRemove={onRemove} />}
+      {menu && <ContextMenu {...menu} onClose={() => setMenu(null)} onProperties={onProperties} onRemove={onRemove} onRefresh={setRefreshing} />}
+      <RefreshDialog download={refreshing} onClose={closeRefresh} />
     </div>
   );
 }
@@ -197,6 +202,7 @@ function ContextMenu({
   onClose,
   onProperties,
   onRemove,
+  onRefresh,
 }: {
   x: number;
   y: number;
@@ -204,6 +210,7 @@ function ContextMenu({
   onClose: () => void;
   onProperties: (d: Download) => void;
   onRemove: (d: Download) => void;
+  onRefresh: (d: Download) => void;
 }) {
   const act = useDownloadActions();
   const { queues, memberships, refreshQueues } = useDownloads();
@@ -234,6 +241,7 @@ function ContextMenu({
     [RotateCcw, "Restart", true, () => act.restart(d)],
     [Square, "Cancel", d.status !== "completed" && d.status !== "cancelled", () => act.cancel(d)],
     [ClipboardCopy, "Copy download URL", true, () => act.copyUrl(d)],
+    [Link2, "Refresh download address…", d.kind === "http" && d.status !== "completed", () => onRefresh(d)],
     [RefreshCw, "Recheck availability", true, () => act.recheck(d)],
     ...queues
       .filter((q) => memberships[d.id] !== q.id && d.status !== "completed")

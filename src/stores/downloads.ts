@@ -58,7 +58,7 @@ export const useDownloads = create<DownloadsState>((set, get) => ({
       const [list, categories, settings] = await Promise.all([api.listDownloads(), api.categories(), api.getSettings()]);
       set({ downloads: Object.fromEntries(list.map((d) => [d.id, d])), categories, settings, ready: true });
       await get().refreshQueues();
-      applyTheme(settings.theme);
+      applyTheme(settings.theme, settings.accent);
     } catch (e) {
       set({ loadError: String((e as { message?: string }).message ?? e), ready: true });
     }
@@ -84,11 +84,13 @@ export const useDownloads = create<DownloadsState>((set, get) => ({
 
   setSettings: (settings) => {
     set({ settings });
-    applyTheme(settings.theme);
+    applyTheme(settings.theme, settings.accent);
   },
 }));
 
-export function applyTheme(theme: AppSettings["theme"]) {
+export function applyTheme(theme: AppSettings["theme"], accent: AppSettings["accent"] = "blue") {
   if (theme === "system") document.documentElement.removeAttribute("data-theme");
   else document.documentElement.setAttribute("data-theme", theme);
+  if (accent === "blue") document.documentElement.removeAttribute("data-accent");
+  else document.documentElement.setAttribute("data-accent", accent);
 }

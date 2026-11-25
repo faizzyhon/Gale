@@ -27,12 +27,19 @@ pub fn endpoint(_dir: &Path) -> String {
     format!(r"\\.\pipe\gale-ipc-{user}")
 }
 
-/// Dev/test only. Socket paths are limited to ~108 bytes, so use a short per-folder name in the temp dir.
+/// Linux and macOS: a socket in Gale's own data folder, which other users cannot create files in (so nobody can
+/// put a fake socket there first). Socket paths are limited to ~104 bytes; a very long home folder falls back to the
+/// per-user runtime folder.
 #[cfg(not(windows))]
 pub fn endpoint(dir: &Path) -> String {
+    let p = dir.join("ipc.sock");
+    if p.as_os_str().len() < 100 {
+        return p.to_string_lossy().into_owned();
+    }
     use sha2::Digest;
     let tag = hex::encode(&sha2::Sha256::digest(dir.to_string_lossy().as_bytes())[..6]);
-    std::env::temp_dir().join(format!("gale-{tag}.sock")).to_string_lossy().into_owned()
+    let base = std::env::var_os("XDG_RUNTIME_DIR").map(PathBuf::from).unwrap_or_else(std::env::temp_dir);
+    base.join(format!("gale-{tag}.sock")).to_string_lossy().into_owned()
 }
 
 /// Create a fresh token for this app session; only the current user can read it.
@@ -45,6 +52,8 @@ pub fn write_token(dir: &Path) -> Result<String> {
     {
         use std::os::unix::fs::PermissionsExt;
         std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600))?;
+        // Gale's data folder holds the download list and the token: this user only.
+        std::fs::set_permissions(dir, std::fs::Permissions::from_mode(0o700))?;
     }
     Ok(token)
 }
@@ -88,6 +97,9 @@ pub async fn serve(endpoint: String, token: String, handler: Handler) -> Result<
     }
     #[cfg(not(windows))]
     {
+        if let Some(parent) = Path::new(&endpoint).parent() {
+            std::fs::create_dir_all(parent)?;
+        }
         let _ = std::fs::remove_file(&endpoint);
         let listener = tokio::net::UnixListener::bind(&endpoint)?;
         {
@@ -143,6 +155,11 @@ mod tests {
     async fn authenticated_roundtrip() {
         let dir = std::env::temp_dir().join(format!("gale-ipc-{}", rand::random::<u32>()));
         let token = write_token(&dir).unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            assert_eq!(std::fs::metadata(&dir).unwrap().permissions().mode() & 0o777, 0o700, "data folder is private");
+        }
         let ep = endpoint(&dir);
         let handler: Handler = Arc::new(|env: Envelope| Box::pin(async move { Response::ok(&env.request.id, serde_json::json!({"pong": true})) }));
         tokio::spawn(serve(ep.clone(), token.clone(), handler));

@@ -147,6 +147,14 @@ export interface AppSettings {
   showProgressWindow: boolean;
   closeWindowWhenDone: boolean;
   autoResume: boolean;
+  networks: string[];
+  checkUpdates: boolean;
+  accent: Accent;
+  clipboardWatch: boolean;
+  videoSubtitles: boolean;
+  videoChapters: boolean;
+  sponsorblock: boolean;
+  hfEndpoint: string;
   connections: 1 | 2 | 4 | 8 | 16 | 32;
   maxSimultaneous: number;
   maxRetries: number;
@@ -169,8 +177,31 @@ export interface AppSettings {
   blockedExtensions: string[];
 }
 
+export interface UpdateInfo {
+  current: string;
+  latest: string;
+  newer: boolean;
+  notes: string;
+  page: string;
+  installer: string | null;
+  canInstall: boolean;
+}
+
+export interface NetworkInfo {
+  id: string;
+  name: string;
+  kind: "Wi-Fi" | "Ethernet" | "Other";
+  address: string;
+}
+
+export const ACCENTS = ["blue", "teal", "green", "amber", "red", "graphite"] as const;
+export type Accent = (typeof ACCENTS)[number];
+
 export interface SettingsView extends AppSettings {
   hasProxyPassword: boolean;
+  hasHfToken: boolean;
+  /** Installed from the Microsoft Store: startup is managed by Windows. */
+  packaged: boolean;
 }
 
 export interface Queue {
@@ -251,4 +282,34 @@ export interface BatchResult {
 export interface CommandError {
   code: string;
   message: string;
+}
+
+export interface ModelSearchHit {
+  id: string;
+  downloads: number;
+  likes: number;
+  gated: boolean;
+}
+
+export interface ModelFile {
+  path: string;
+  size: number;
+  sha256: string | null;
+  group: string;
+}
+
+export interface ModelGroup {
+  name: string;
+  /** gguf: pick one; weights: pick one; extra: configs and other files */
+  kind: "gguf" | "weights" | "extra";
+  size: number;
+  files: string[];
+}
+
+export interface ModelInfo {
+  repo: string;
+  revision: string;
+  files: ModelFile[];
+  groups: ModelGroup[];
+  recommended: string[];
 }

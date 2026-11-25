@@ -289,6 +289,84 @@ export function RemoveDialog({ download, onClose, onConfirm }: { download: Downl
   );
 }
 
+/** "Refresh download address": give a broken download a new link to the same file; what is downloaded is kept. */
+export function RefreshDialog({ download, onClose }: { download: Download | null; onClose: () => void }) {
+  const [url, setUrl] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [waiting, setWaiting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    setUrl("");
+    setError(null);
+    setWaiting(false);
+  }, [download]);
+  useEffect(() => {
+    if (!download) return;
+    const un = api.onRefreshed((id) => id === download.id && onClose());
+    return () => void un.then((f) => f());
+  }, [download, onClose]);
+  const use = async () => {
+    if (!download) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await api.refreshUrl(download.id, url.trim());
+      onClose();
+    } catch (e) {
+      setError(errorMessage(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Dialog
+      open={!!download}
+      title="Refresh download address"
+      width={520}
+      onClose={onClose}
+      footer={
+        <>
+          <Button onClick={onClose}>Close</Button>
+          <Button variant="accent" disabled={busy || !url.trim()} onClick={use}>
+            {busy ? "Checking…" : "Use this address"}
+          </Button>
+        </>
+      }
+    >
+      <p className="mb-1 text-[13px] break-all text-fg">{download?.fileName}</p>
+      <p className="mb-4 text-[12px] text-fg-3">
+        {download?.totalBytes ? `${bytes(download.totalBytes)} · ` : ""}
+        {download ? `${bytes(download.downloadedBytes)} already downloaded and kept` : ""}
+      </p>
+      <Field label="New address">
+        <input autoFocus className={inputCls} value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://" spellCheck={false} />
+      </Field>
+      <p className="mt-1 text-[12px] text-fg-3">Gale checks that the new address is the same file (same size) before it continues.</p>
+      <div className="mt-4 rounded-[var(--radius-control)] border border-line p-3">
+        {waiting ? (
+          <p className="text-[13px] text-fg-2">
+            Waiting for the browser. Start the download again on the page that opened; Gale takes over the new address when the file is the same size. (5 minutes)
+          </p>
+        ) : (
+          <>
+            <p className="mb-2 text-[13px] text-fg-2">Links from file hosts often expire. Open the page again and Gale picks up the fresh link from the browser extension.</p>
+            <Button
+              onClick={() => {
+                if (!download) return;
+                setError(null);
+                api.refreshFromBrowser(download.id).then(() => setWaiting(true), (e) => setError(errorMessage(e)));
+              }}
+            >
+              Get a new address from the website
+            </Button>
+          </>
+        )}
+      </div>
+      {error && <p className="mt-3 text-[12px] text-bad">{error}</p>}
+    </Dialog>
+  );
+}
+
 export function PropertiesDialog({ download, onClose }: { download: Download | null; onClose: () => void }) {
   const fresh = useDownloads((s) => (download ? s.downloads[download.id] : undefined)) ?? download;
   const live = useDownloads((s) => (download ? s.live[download.id] : undefined));

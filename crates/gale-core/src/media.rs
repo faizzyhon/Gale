@@ -20,6 +20,19 @@ use crate::{Error, Result};
 
 const EXE: &str = if cfg!(windows) { ".exe" } else { "" };
 
+/// How to get a missing tool on this system (Windows ships them in the installer).
+pub const TOOL_HINT: &str = if cfg!(windows) {
+    "reinstall Gale or install it and add it to PATH"
+} else if cfg!(target_os = "macos") {
+    "install it with Homebrew (brew install ffmpeg yt-dlp), or let Gale download yt-dlp in Settings"
+} else {
+    "install it from your distribution (for example sudo apt install ffmpeg), or let Gale download yt-dlp in Settings"
+};
+
+/// Standalone yt-dlp build for this system, from yt-dlp's GitHub releases.
+#[cfg(not(windows))]
+const YTDLP_ASSET: &str = if cfg!(target_os = "macos") { "yt-dlp_macos" } else { "yt-dlp_linux" };
+
 // ---------------------------------------------------------------------------------------------
 // Tools
 
@@ -75,7 +88,42 @@ impl MediaTools {
 }
 
 fn which(file: &str) -> Option<PathBuf> {
-    std::env::split_paths(&std::env::var_os("PATH")?).map(|d| d.join(file)).find(|p| p.is_file())
+    let path = std::env::var_os("PATH").unwrap_or_default();
+    // Apps started from the Dock or a desktop menu don't get the shell's PATH (Homebrew, pipx, ~/.local/bin).
+    #[cfg(unix)]
+    let extra: Vec<PathBuf> = ["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/snap/bin"]
+        .iter()
+        .map(PathBuf::from)
+        .chain(dirs::home_dir().map(|h| h.join(".local/bin")))
+        .collect();
+    #[cfg(not(unix))]
+    let extra: Vec<PathBuf> = Vec::new();
+    std::env::split_paths(&path).chain(extra).map(|d| d.join(file)).find(|p| p.is_file())
+}
+
+/// Linux and macOS: downloads the standalone yt-dlp into `user_dir`, checked against the release's SHA2-256SUMS.
+#[cfg(not(windows))]
+pub async fn install_ytdlp(user_dir: &Path) -> Result<PathBuf> {
+    use sha2::{Digest, Sha256};
+    const BASE: &str = "https://github.com/yt-dlp/yt-dlp/releases/latest/download/";
+    let c = reqwest::Client::builder().user_agent(concat!("Gale/", env!("CARGO_PKG_VERSION"))).build()?;
+    let sums = c.get(format!("{BASE}SHA2-256SUMS")).send().await?.error_for_status()?.text().await?;
+    let want = sums
+        .lines()
+        .find_map(|l| l.split_once(char::is_whitespace).filter(|(_, n)| n.trim() == YTDLP_ASSET).map(|(h, _)| h.to_ascii_lowercase()))
+        .ok_or_else(|| Error::Media("yt-dlp's release has no checksum for this system".into()))?;
+    let bytes = c.get(format!("{BASE}{YTDLP_ASSET}")).send().await?.error_for_status()?.bytes().await?;
+    if hex::encode(Sha256::digest(&bytes)) != want {
+        return Err(Error::Media("the downloaded yt-dlp does not match its checksum".into()));
+    }
+    tokio::fs::create_dir_all(user_dir).await?;
+    let target = user_dir.join("yt-dlp");
+    let tmp = user_dir.join("yt-dlp.download");
+    tokio::fs::write(&tmp, &bytes).await?;
+    use std::os::unix::fs::PermissionsExt;
+    tokio::fs::set_permissions(&tmp, std::fs::Permissions::from_mode(0o755)).await?;
+    tokio::fs::rename(&tmp, &target).await?;
+    Ok(target)
 }
 
 fn command(exe: &Path) -> Command {
@@ -415,6 +463,7 @@ pub struct MediaJob {
     pub concurrent_fragments: u8,
     pub expected_bytes: Option<u64>,
     pub net: MediaNet,
+    pub extras: MediaExtras,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -429,6 +478,30 @@ pub struct MediaProgress {
 pub enum MediaOutcome {
     Completed { path: PathBuf, bytes: u64 },
     Paused,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub struct MediaExtras {
+    /// Embed the video's own subtitles (not automatic captions) in the file.
+    pub subtitles: bool,
+    pub chapters: bool,
+    /// Cut sponsor, self-promotion and "like and subscribe" segments (SponsorBlock; YouTube).
+    pub sponsorblock: bool,
+}
+
+pub fn extras_args(choice: MediaChoice, x: MediaExtras) -> Vec<String> {
+    let mut a: Vec<String> = Vec::new();
+    let video = matches!(choice, MediaChoice::Video { .. });
+    if x.subtitles && video {
+        a.extend(["--write-subs", "--sub-langs", "all,-live_chat", "--embed-subs"].map(String::from));
+    }
+    if x.chapters {
+        a.push("--embed-chapters".into());
+    }
+    if x.sponsorblock {
+        a.extend(["--sponsorblock-remove", "sponsor,selfpromo,interaction"].map(String::from));
+    }
+    a
 }
 
 pub fn selector_args(choice: MediaChoice) -> Vec<String> {
@@ -521,7 +594,7 @@ pub async fn download(
     if job.net.rate_limit_bps > 0 {
         c.arg("--limit-rate").arg(job.net.rate_limit_bps.to_string());
     }
-    c.args(selector_args(job.choice)).arg("--").arg(job.url.as_str());
+    c.args(selector_args(job.choice)).args(extras_args(job.choice, job.extras)).arg("--").arg(job.url.as_str());
     c.stdout(Stdio::piped()).stderr(Stdio::piped());
 
     let mut child = c.spawn().map_err(|e| Error::ToolMissing(format!("yt-dlp ({e})")))?;
@@ -676,6 +749,12 @@ mod tests {
         assert!(!v.contains("allow-unplayable"));
         assert!(selector_args(MediaChoice::Audio { mp3: true }).join(" ").contains("--audio-format mp3"));
         assert!(!selector_args(MediaChoice::Audio { mp3: false }).join(" ").contains("--audio-format"));
+        let all = MediaExtras { subtitles: true, chapters: true, sponsorblock: true };
+        let v = extras_args(MediaChoice::Video { max_height: None }, all).join(" ");
+        assert!(v.contains("--embed-subs") && v.contains("--embed-chapters") && v.contains("--sponsorblock-remove sponsor"));
+        let a = extras_args(MediaChoice::Audio { mp3: true }, all).join(" ");
+        assert!(!a.contains("subs"), "no subtitles in audio files");
+        assert!(extras_args(MediaChoice::Video { max_height: None }, MediaExtras::default()).is_empty());
     }
 
     #[test]

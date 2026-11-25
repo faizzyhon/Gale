@@ -289,6 +289,22 @@ impl Db {
     }
 
     /// Clears progress so the next start begins from byte 0 (restart, or remote file changed).
+    /// New address for the same file (see `Manager::refresh_url`). Progress and segments are kept.
+    pub async fn refresh_address(&self, id: i64, url: &str, final_url: &str, etag: Option<&str>, last_modified: Option<&str>) -> Result<()> {
+        sqlx::query(&format!(
+            "UPDATE downloads SET url = ?, final_url = ?, etag = ?, last_modified = ?, error_code = NULL, error_message = NULL,
+                    status = CASE WHEN status = 'failed' THEN 'paused' ELSE status END, updated_at = {NOW} WHERE id = ?"
+        ))
+        .bind(url)
+        .bind(final_url)
+        .bind(etag)
+        .bind(last_modified)
+        .bind(id)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
     pub async fn reset_progress(&self, id: i64) -> Result<()> {
         let mut tx = self.pool.begin().await?;
         sqlx::query("DELETE FROM download_segments WHERE download_id = ?").bind(id).execute(&mut *tx).await?;

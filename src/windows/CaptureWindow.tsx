@@ -33,7 +33,7 @@ export function CaptureWindow({ pendingId }: { pendingId: string }) {
     (async () => {
       try {
         const [i, s, c, q] = await Promise.all([api.getPending(pendingId), api.getSettings(), api.categories(), api.listQueues()]);
-        applyTheme(s.theme);
+        applyTheme(s.theme, s.accent);
         setInfo(i);
         setSettings(s);
         setCats(c);

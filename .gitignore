@@ -5,3 +5,5 @@ src-tauri/gen/
 *.gale-part
 browser-extension/keys/extension-key.pem
 dist-store/
+dist-firefox/
+src-tauri/binaries/

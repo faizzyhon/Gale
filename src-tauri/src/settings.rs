@@ -9,6 +9,8 @@ use tauri::{AppHandle, Manager};
 pub const KEY: &str = "app";
 const CRED_SERVICE: &str = "Gale Download Manager";
 const CRED_PROXY: &str = "proxy";
+const CRED_HF: &str = "huggingface";
+pub const ACCENTS: &[&str] = &["blue", "teal", "green", "amber", "red", "graphite"];
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase", default)]
@@ -24,6 +26,22 @@ pub struct AppSettings {
     pub close_window_when_done: bool,
     /// Resume downloads that were running when Gale closed, and retry after network errors.
     pub auto_resume: bool,
+    /// Network connections (interface names) used together; empty = the default route only.
+    pub networks: Vec<String>,
+    /// Ask GitHub for a newer version when Gale starts (one request; nothing about the user is sent).
+    pub check_updates: bool,
+    /// Accent colour, one of ACCENTS.
+    pub accent: String,
+    /// Offer to download links copied anywhere (off by default: reading the clipboard is something users opt into).
+    pub clipboard_watch: bool,
+    // Video
+    pub video_subtitles: bool,
+    pub video_chapters: bool,
+    /// Cut sponsor segments using the community SponsorBlock database (YouTube only; sends the video id to sponsor.ajay.app).
+    pub sponsorblock: bool,
+    // AI models
+    /// https://huggingface.co or the public mirror https://hf-mirror.com (the only hosts the token is sent to).
+    pub hf_endpoint: String,
     // Downloads
     pub connections: u8,
     /// Applied at startup.
@@ -82,6 +100,14 @@ impl Default for AppSettings {
             show_progress_window: true,
             close_window_when_done: false,
             auto_resume: true,
+            networks: Vec::new(),
+            check_updates: true,
+            accent: "blue".into(),
+            clipboard_watch: false,
+            video_subtitles: false,
+            video_chapters: true,
+            sponsorblock: false,
+            hf_endpoint: gale_core::hf::DEFAULT_ENDPOINT.into(),
             connections: 8,
             max_simultaneous: 3,
             max_retries: 6,
@@ -138,6 +164,13 @@ impl AppSettings {
         self.browser_excluded_domains = clean_list(self.browser_excluded_domains);
         self.browser_excluded_types = clean_list(self.browser_excluded_types);
         self.blocked_extensions = clean_list(self.blocked_extensions);
+        if !ACCENTS.contains(&self.accent.as_str()) {
+            self.accent = "blue".into();
+        }
+        self.hf_endpoint = self.hf_endpoint.trim().trim_end_matches('/').to_string();
+        if !gale_core::hf::TOKEN_HOSTS.iter().any(|h| self.hf_endpoint == format!("https://{h}")) {
+            return Err("Hugging Face address must be https://huggingface.co or https://hf-mirror.com".into());
+        }
         Ok(self)
     }
 
@@ -156,6 +189,9 @@ impl AppSettings {
             proxy: self.proxy(),
             download_limit_bps: self.per_download_limit_kbps * 1024,
             limits: Limits::new(Some(global.clone()), Some(hosts.clone())),
+            // One network alone is just the default route with extra steps.
+            networks: if self.networks.len() >= 2 { self.networks.clone() } else { Vec::new() },
+            media_extras: gale_core::media::MediaExtras { subtitles: self.video_subtitles, chapters: self.video_chapters, sponsorblock: self.sponsorblock },
             ..base
         }
     }
@@ -182,6 +218,27 @@ pub fn set_proxy_password(pw: Option<&str>) -> Result<(), String> {
     let e = keyring::Entry::new(CRED_SERVICE, CRED_PROXY).map_err(|e| e.to_string())?;
     match pw {
         Some(p) if !p.is_empty() => e.set_password(p).map_err(|e| e.to_string()),
+        _ => match e.delete_credential() {
+            Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
+            Err(err) => Err(err.to_string()),
+        },
+    }
+}
+
+pub fn hf_token() -> Option<String> {
+    keyring::Entry::new(CRED_SERVICE, CRED_HF).ok()?.get_password().ok().filter(|t| !t.is_empty())
+}
+
+/// Stores (or with `None`, deletes) the Hugging Face access token in the system keychain.
+pub fn set_hf_token(token: Option<&str>) -> Result<(), String> {
+    let e = keyring::Entry::new(CRED_SERVICE, CRED_HF).map_err(|e| e.to_string())?;
+    match token.map(str::trim) {
+        Some(t) if !t.is_empty() => {
+            if t.len() > 200 || !t.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-') {
+                return Err("that does not look like a Hugging Face token (they start with hf_)".into());
+            }
+            e.set_password(t).map_err(|e| e.to_string())
+        }
         _ => match e.delete_credential() {
             Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
             Err(err) => Err(err.to_string()),

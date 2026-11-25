@@ -1,7 +1,7 @@
 {
   "name": "gale-browser-extension",
   "private": true,
-  "version": "0.5.0",
+  "version": "0.7.0",
   "author": "Muhammad Faizan <faizzyhon@gmail.com> (https://faizzyhon.com)",
   "license": "MIT",
   "type": "module",
@@ -9,6 +9,7 @@
     "typecheck": "tsc --noEmit",
     "build": "tsc --noEmit && node build.mjs",
     "build:store": "tsc --noEmit && node build.mjs --store",
+    "build:firefox": "tsc --noEmit && node build.mjs --firefox",
     "test": "node build.mjs --tests && node --test dist-tests/rules.test.js"
   },
   "devDependencies": {

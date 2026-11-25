@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Gale</string>
+    <string name="share_label">Download with Gale</string>
+    <string name="instagram_sign_in">Sign in to Instagram</string>
+</resources>

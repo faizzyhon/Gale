@@ -9,9 +9,16 @@ use gale_core::ipc::{self, Stream};
 use gale_core::protocol::{read_frame, write_frame, Command, Envelope, Request, Response};
 
 /// Derived from browser-extension/manifest.json "key"; see browser-extension/keys/extension-id.txt.
-const ALLOWED_ORIGINS: &[&str] = &["chrome-extension://abiednbonckeaneafpemajipbefdfblo/"];
+const ALLOWED_ORIGINS: &[&str] = &["chrome-extension://abiednbonckeaneafpemajipbefdfblo/", FIREFOX_ID];
+/// Gale's Firefox add-on (browser_specific_settings.gecko.id).
+const FIREFOX_ID: &str = "gale@faizzyhon.com";
 
 fn app_exe() -> Option<PathBuf> {
+    // Test hook (debug builds only): the program the tests run as the server.
+    #[cfg(debug_assertions)]
+    if let Ok(p) = std::env::var("GALE_SERVER_EXE") {
+        return Some(PathBuf::from(p));
+    }
     let name = if cfg!(windows) { "gale.exe" } else { "gale" };
     Some(std::env::current_exe().ok()?.parent()?.join(name))
 }
@@ -119,15 +126,30 @@ fn verify_server(s: &Stream) -> Result<(), String> {
     Ok(())
 }
 
+/// Linux/macOS: the socket's owner must be this user, and on Linux the process must be our own `gale`.
 #[cfg(not(windows))]
-fn verify_server(_s: &Stream) -> Result<(), String> {
-    Ok(()) // Unix socket lives in a 0700 user folder; dev/test only.
+fn verify_server(s: &Stream) -> Result<(), String> {
+    let cred = s.peer_cred().map_err(|_| "cannot identify the Gale process".to_string())?;
+    // SAFETY: geteuid has no preconditions.
+    if cred.uid() != unsafe { libc::geteuid() } {
+        return Err("the Gale connection belongs to another user".into());
+    }
+    #[cfg(target_os = "linux")]
+    if let (Some(pid), Some(expected)) = (cred.pid(), app_exe()) {
+        let canon = |p: &std::path::Path| std::fs::canonicalize(p).unwrap_or_else(|_| p.to_path_buf());
+        let running = std::fs::read_link(format!("/proc/{pid}/exe")).map_err(|_| "cannot identify the Gale process".to_string())?;
+        if canon(&running) != canon(&expected) {
+            return Err(format!("the Gale connection is owned by another program ({}), not {}", running.display(), expected.display()));
+        }
+    }
+    Ok(())
 }
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
-    // Chrome passes the caller as the first argument; Edge/Chrome on Windows add --parent-window.
-    let origin = std::env::args().skip(1).find(|a| a.starts_with("chrome-extension://")).unwrap_or_default();
+    // Chrome passes the caller as the first argument (Edge/Chrome on Windows add --parent-window); Firefox passes
+    // the manifest path and then the add-on id.
+    let origin = std::env::args().skip(1).find(|a| a.starts_with("chrome-extension://") || a == FIREFOX_ID).unwrap_or_default();
     if !ALLOWED_ORIGINS.contains(&origin.as_str()) {
         eprintln!("gale-nmh: rejected caller {origin:?}");
         std::process::exit(1);

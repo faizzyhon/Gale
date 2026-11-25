@@ -1,4 +1,5 @@
 import { getVersion } from "@tauri-apps/api/app";
+import { useUpdateCheck } from "../components/UpdateBanner";
 import { ExternalLink } from "lucide-react";
 import { useEffect, useState } from "react";
 import { api } from "../services/api";
@@ -27,6 +28,7 @@ function Card({ title, children }: { title: string; children: React.ReactNode })
 export function AboutPage() {
   const [version, setVersion] = useState("");
   useEffect(() => void getVersion().then(setVersion, () => {}), []);
+  const upd = useUpdateCheck();
 
   return (
     <div className="h-full overflow-auto">
@@ -39,13 +41,19 @@ export function AboutPage() {
           </div>
           <div>
             <h1 className="font-display text-[28px] leading-tight font-semibold">Gale Download Manager</h1>
-            <p className="text-fg-2">Version {version || "…"} · Free and open source (MIT) · Windows 10 and 11</p>
+            <p className="text-fg-2">Version {version || "…"} · Free and open source (MIT) · Windows, macOS and Linux</p>
+            <p className="mt-1 text-[13px]">
+              <button className="text-accent hover:underline" onClick={() => void upd.check()}>
+                Check for updates
+              </button>
+              {upd.state && <span className="ml-2 text-fg-3">{upd.state}</span>}
+            </p>
           </div>
         </div>
 
         <Card title="About Gale">
           <p className="leading-relaxed text-fg-2">
-            Gale is a free download manager for Windows. It splits each download into several connections to use your full bandwidth, resumes interrupted
+            Gale is a free download manager for Windows, macOS and Linux. It splits each download into several connections to use your full bandwidth, resumes interrupted
             downloads where they stopped, and checks every finished file before marking it complete. It catches downloads from Chrome and Edge, saves
             videos from YouTube and other sites in the quality you choose, and organises everything into categories, queues and schedules. There are no ads,
             no accounts and no tracking.

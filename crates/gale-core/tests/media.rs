@@ -116,6 +116,8 @@ async fn run(t: &MediaTools, u: url::Url, choice: MediaChoice, dir: &Path) -> ga
         concurrent_fragments: 4,
         expected_bytes: None,
         net: MediaNet { timeout_secs: 20, ..Default::default() },
+        // yt-dlp must accept these on every kind of source (no subtitles or chapters there is fine).
+        extras: media::MediaExtras { subtitles: true, chapters: true, sponsorblock: false },
     };
     let stages = Arc::new(std::sync::Mutex::new(Vec::<&'static str>::new()));
     let s2 = stages.clone();

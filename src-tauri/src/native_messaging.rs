@@ -59,6 +59,22 @@ pub async fn handle(app: AppHandle, env: Envelope) -> Response {
         }
         _ if !settings.browser_enabled => Response::err(&id, "disabled", "Browser integration is turned off in Gale"),
         Command::AddDownload(p) => {
+            // "Refresh from browser" is waiting: a download of the same size is the new address of the broken one.
+            let waiting = st.refreshing.lock().unwrap().filter(|(_, at)| at.elapsed() < std::time::Duration::from_secs(300));
+            if let Some((rid, _)) = waiting {
+                let size_matches = db.get_download(rid).await.ok().and_then(|d| d.total_bytes).zip(p.file_size).is_some_and(|(a, b)| a == b);
+                if size_matches {
+                    match st.manager.refresh_url(rid, &p.url, Some(headers_for(&p)), true).await {
+                        Ok(()) => {
+                            *st.refreshing.lock().unwrap() = None;
+                            let _ = db.add_browser_event("refreshed", Some(&p.url), p.page_url.as_deref(), Some(rid)).await;
+                            let _ = app.emit("download://refreshed", rid);
+                            return Response::ok(&id, json!({ "id": rid }));
+                        }
+                        Err(e) => tracing::info!(id = rid, error = %e, "caught download is not the file being refreshed"),
+                    }
+                }
+            }
             let _ = db.add_browser_event(if p.silent { "intercepted" } else { "confirm" }, Some(&p.url), p.page_url.as_deref(), None).await;
             if !p.silent {
                 // The user confirms in Gale's Add dialog; headers stay here, not in the webview.

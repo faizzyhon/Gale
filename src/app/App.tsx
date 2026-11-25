@@ -1,13 +1,16 @@
+import { listen } from "@tauri-apps/api/event";
 import { AnimatePresence, motion } from "framer-motion";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { DownloadTable } from "../components/DownloadTable";
 import { MediaDialog } from "../components/MediaDialog";
+import { UpdateBanner } from "../components/UpdateBanner";
 import { AddUrlDialog, BatchDialog, PropertiesDialog, RemoveDialog, ShutdownDialog } from "../components/dialogs";
 import { Toasts } from "../components/ui";
 import { useDownloadActions } from "../hooks/useDownloadActions";
 import { Shell } from "../layouts/Shell";
 import { DashboardPage } from "../pages/DashboardPage";
 import { GrabberPage } from "../pages/GrabberPage";
+import { ModelsPage } from "../pages/ModelsPage";
 import { QueuesPage } from "../pages/QueuesPage";
 import { api } from "../services/api";
 import { toastError } from "../stores/toast";
@@ -93,10 +96,13 @@ export function App() {
       const uriList = (d?.getData("text/uri-list") ?? "").split("\n").filter((l) => !l.startsWith("#")).join(" ");
       if (take(links(uriList || (d?.getData("text/plain") ?? "")))) e.preventDefault();
     };
+    // Settings → "Watch the clipboard": Rust sends links copied in other apps.
+    const unClip = listen<string>("clipboard://link", (e) => take([e.payload]));
     window.addEventListener("paste", onPaste);
     window.addEventListener("dragover", onDragOver);
     window.addEventListener("drop", onDrop);
     return () => {
+      void unClip.then((f) => f());
       window.removeEventListener("paste", onPaste);
       window.removeEventListener("dragover", onDragOver);
       window.removeEventListener("drop", onDrop);
@@ -126,6 +132,7 @@ export function App() {
 
   return (
     <>
+      <UpdateBanner />
       <Shell view={view} onNavigate={setView} query={query} onQuery={setQuery} onAdd={() => setAdding(true)} onBatch={() => setBatch(true)} onVideo={() => setVideo({ url: null })}>
         <AnimatePresence mode="wait" initial={false}>
           <motion.div
@@ -143,6 +150,7 @@ export function App() {
             {view.page === "about" && <AboutPage />}
             {view.page === "queues" && <QueuesPage />}
             {view.page === "grabber" && <GrabberPage />}
+            {view.page === "models" && <ModelsPage onOpenSettings={() => setView({ page: "settings" })} />}
           </motion.div>
         </AnimatePresence>
       </Shell>

@@ -18,7 +18,8 @@ export type View =
   | { page: "settings" }
   | { page: "about" }
   | { page: "queues" }
-  | { page: "grabber" };
+  | { page: "grabber" }
+  | { page: "models" };
 
 export const STATUS_NAV: NavItem[] = [
   { id: "all", label: "All Downloads", filter: { kind: "all" } },

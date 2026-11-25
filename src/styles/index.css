@@ -75,6 +75,24 @@
   color-scheme: dark;
 }
 
+
+/* Accent colours (Settings → General). Blue is the default above. */
+:root[data-accent="teal"] { --accent: #00747a; --accent-fg: #ffffff; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"])[data-accent="teal"] { --accent: #4cc2c4; --accent-fg: #00363a; } }
+:root[data-theme="dark"][data-accent="teal"] { --accent: #4cc2c4; --accent-fg: #00363a; }
+:root[data-accent="green"] { --accent: #107c10; --accent-fg: #ffffff; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"])[data-accent="green"] { --accent: #6ccb5f; --accent-fg: #0b3b0b; } }
+:root[data-theme="dark"][data-accent="green"] { --accent: #6ccb5f; --accent-fg: #0b3b0b; }
+:root[data-accent="amber"] { --accent: #a75c00; --accent-fg: #ffffff; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"])[data-accent="amber"] { --accent: #ffb547; --accent-fg: #3d2400; } }
+:root[data-theme="dark"][data-accent="amber"] { --accent: #ffb547; --accent-fg: #3d2400; }
+:root[data-accent="red"] { --accent: #c42b1c; --accent-fg: #ffffff; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"])[data-accent="red"] { --accent: #ff99a4; --accent-fg: #4a0b10; } }
+:root[data-theme="dark"][data-accent="red"] { --accent: #ff99a4; --accent-fg: #4a0b10; }
+:root[data-accent="graphite"] { --accent: #4c4c4c; --accent-fg: #ffffff; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"])[data-accent="graphite"] { --accent: #c8c8c8; --accent-fg: #1b1b1b; } }
+:root[data-theme="dark"][data-accent="graphite"] { --accent: #c8c8c8; --accent-fg: #1b1b1b; }
+
 html,
 body,
 #root {
@@ -137,3 +155,8 @@ select {
 }
 button:active:not(:disabled) { transform: scale(0.97); }
 button { transition: transform 80ms ease, background-color 120ms ease, opacity 120ms ease; }
+
+input[type="checkbox"],
+input[type="radio"] {
+  accent-color: var(--accent);
+}
