@@ -131,6 +131,7 @@ pub fn link_url(name: &str) -> Option<String> {
         "website" => "https://faizzyhon.com".into(),
         "github" => "https://github.com/faizzyhon".into(),
         "linkedin" => "https://www.linkedin.com/in/faizzyhon/".into(),
+        "donate" => "https://www.paypal.com/paypalme/faizzyhon".into(),
         "repo" => REPO.into(),
         "issues" => format!("{REPO}/issues"),
         "releases" => format!("{REPO}/releases"),

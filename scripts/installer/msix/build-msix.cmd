@@ -15,7 +15,7 @@ set "N=%~1"
 set "P=%~2"
 set "D=%~3"
 set "V=%~4"
-if "%V%"=="" set "V=0.7.0.0"
+if "%V%"=="" set "V=0.7.1.0"
 cd /d "%~dp0"
 
 set "MAKEAPPX="

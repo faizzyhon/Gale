@@ -75,6 +75,7 @@ export function AboutPage() {
             <Link name="repo">Source code</Link>
             <Link name="releases">Releases</Link>
             <Link name="issues">Report a problem</Link>
+            <Link name="donate">Donate with PayPal</Link>
           </div>
         </Card>
 

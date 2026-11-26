@@ -10,7 +10,7 @@ Tauri 2 + React 19 UI. Architecture: [`docs/architecture/ARCHITECTURE.md`](docs/
 
 ## Install (Windows 11)
 
-1. Run `Gale_Setup_0.7.0.exe` (or `Gale_0.7.0_x64.msi`) and approve the administrator prompt. The setup also installs
+1. Run `Gale_Setup_0.7.1.exe` (or `Gale_0.7.1_x64.msi`) and approve the administrator prompt. The setup also installs
    Microsoft Edge WebView2 Runtime if the PC lacks it. Gale installs to `C:\Program Files\Gale` for all users.
    Running a newer (or the same) installer updates Gale in place; an older per-user Gale is removed automatically and your download list is kept.
    The build isn't code-signed yet, so SmartScreen may say "Windows protected your PC": choose **More info → Run anyway**.
@@ -22,7 +22,7 @@ Gale starts with Windows in the tray so browser downloads and schedules always w
 
 Uninstall from Settings → Apps. Your download list/history (`%APPDATA%\com.faizzyhon.gale`) and downloaded files are kept.
 
-Portable: unzip `Gale-0.7.0-windows-x64-portable.zip` and run `gale.exe`. It registers the browser helper for your
+Portable: unzip `Gale-0.7.1-windows-x64-portable.zip` and run `gale.exe`. It registers the browser helper for your
 user and does not add itself to Windows startup unless you turn that on.
 
 When a new version is out, Gale shows a bar at the top; **Install** downloads the MSI, checks its SHA-256, replaces
@@ -30,13 +30,13 @@ the old version and restarts Gale. Turn the check off in Settings → General.
 
 ## Install (Linux and macOS)
 
-- Debian/Ubuntu: `sudo apt install ./Gale_0.7.0_amd64.deb`. Fedora/openSUSE: `sudo dnf install ./Gale_0.7.0_x86_64.rpm`.
+- Debian/Ubuntu: `sudo apt install ./Gale_0.7.1_amd64.deb`. Fedora/openSUSE: `sudo dnf install ./Gale_0.7.1_x86_64.rpm`.
   Install `ffmpeg` from your distribution for video downloads; Gale fetches yt-dlp itself on first use.
-- macOS 11 or later: open `Gale_0.7.0_universal.dmg` and drag Gale to Applications. The app is not notarized, so
+- macOS 11 or later: open `Gale_0.7.1_universal.dmg` and drag Gale to Applications. The app is not notarized, so
   the first start needs right-click → **Open**. Install FFmpeg with `brew install ffmpeg` for video downloads.
-- Browser extension: unzip `Gale-Chrome-Extension-0.7.0.zip`, then in Chrome/Chromium/Edge/Brave open Extensions →
+- Browser extension: unzip `Gale-Chrome-Extension-0.7.1.zip`, then in Chrome/Chromium/Edge/Brave open Extensions →
   Developer mode → **Load unpacked** → that folder. Start Gale once first so it registers itself with the browsers.
-- Firefox 142+ (any system): `Gale-Firefox-Extension-0.7.0.zip` → `about:debugging` → This Firefox → **Load Temporary
+- Firefox 142+ (any system): `Gale-Firefox-Extension-0.7.1.zip` → `about:debugging` → This Firefox → **Load Temporary
   Add-on**. Gale registers its helper with Firefox when it starts.
 
 On Linux and macOS the update bar opens the release page; install the new package the same way as above.
@@ -94,3 +94,4 @@ Keep it private and don't commit it (it's in `.gitignore`); losing it means a ne
 - [MIT License](LICENSE) © 2026 Muhammad Faizan. Third-party components: [THIRD-PARTY-NOTICES.txt](scripts/installer/THIRD-PARTY-NOTICES.txt).
 - Store listings and submission notes: [docs/store](docs/store/README.md).
 - Website: [`website/`](website/) (built by `python3 scripts/website/build.py`, published to GitHub Pages by `.github/workflows/website.yml`). The PayPal link is `PAYPAL_URL` in `website/assets/site.js`.
+- Support the project: [PayPal](https://www.paypal.com/paypalme/faizzyhon)

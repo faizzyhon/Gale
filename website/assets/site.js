@@ -2,7 +2,7 @@
 
 // Your PayPal donation link. Every "Donate" / "Buy me a coffee" button on the site uses this one value.
 // Example: "https://www.paypal.com/paypalme/yourname". While it is empty the buttons open the Support page.
-const PAYPAL_URL = "";
+const PAYPAL_URL = "https://www.paypal.com/paypalme/faizzyhon";
 
 (function () {
   const root = document.documentElement;

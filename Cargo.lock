@@ -1757,7 +1757,7 @@ dependencies = [
 
 [[package]]
 name = "gale"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "arboard",
  "chrono",
@@ -1787,7 +1787,7 @@ dependencies = [
 
 [[package]]
 name = "gale-core"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "anyhow",
  "axum",
@@ -1817,7 +1817,7 @@ dependencies = [
 
 [[package]]
 name = "gale-nmh"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "gale-core",
  "libc",

@@ -4,11 +4,11 @@ rem installed in your certificate store: a USB token (Certum, Sectigo...) or a c
 rem Certum SimplySign. Run it from the folder that holds the two files, after the certificate's app has
 rem connected the certificate. Needs signtool.exe from the Windows SDK.
 rem
-rem   sign-windows.cmd 0.7.0
+rem   sign-windows.cmd 0.7.1
 rem
 rem The installers built on Linux can instead be signed during the build: see SIGN_PFX in build-msi.sh.
 setlocal enabledelayedexpansion
-if "%~1"=="" (echo Usage: %~nx0 ^<version^>  e.g. %~nx0 0.7.0 & exit /b 1)
+if "%~1"=="" (echo Usage: %~nx0 ^<version^>  e.g. %~nx0 0.7.1 & exit /b 1)
 set TS=http://timestamp.digicert.com
 where signtool >nul 2>nul || (echo signtool.exe not found. Install the Windows SDK "Signing Tools" or run from a Developer Command Prompt. & exit /b 1)
 

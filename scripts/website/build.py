@@ -761,6 +761,11 @@ def faq():
 
 # ---------------------------------------------------------------------------------------- changelog
 LOG = [
+    ("0.7.1", "November 2026", [
+        "Remember the download folder for each file type (video, music, documents and more); manage them in Settings > Downloads",
+        "Donate link in About",
+        "Firefox extension needs Firefox 142 or later",
+    ]),
     ("0.7.0", "November 2026", [
         "AI Models: search Hugging Face or paste a model, pick a GGUF size or the weights, and download with SHA-256 checks; gated models with your token; save into LM Studio's folder",
         "Servers that allow only a few connections are detected: Gale uses what the server accepts and remembers it",

@@ -107,7 +107,7 @@ export const api = {
   probePending: (pendingId: string) => invoke<ProbeResult>("probe_pending", { pendingId }),
   showMain: () => invoke<void>("show_main_window"),
   /** Opens one of the About page links by name (the app holds the URLs). */
-  openLink: (name: "website" | "github" | "linkedin" | "repo" | "issues" | "releases" | "privacy" | "terms" | "license" | "notices") =>
+  openLink: (name: "website" | "github" | "linkedin" | "donate" | "repo" | "issues" | "releases" | "privacy" | "terms" | "license" | "notices") =>
     invoke<void>("open_link", { name }),
   probeMedia: (url: string) => invoke<MediaInfo>("probe_media", { url }),
   mediaTools: () => invoke<MediaToolsInfo>("media_tools_info"),

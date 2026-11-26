@@ -8,7 +8,7 @@ Copy-paste text for every store and download site. Store-specific fields are in 
 |---|---|
 | Product name | Gale Download Manager |
 | Short name | Gale |
-| Version | 0.7.0 |
+| Version | 0.7.1 |
 | Developer / publisher | Muhammad Faizan |
 | Website | https://faizzyhon.com |
 | Source code | https://github.com/faizzyhon/Gale |
@@ -21,7 +21,7 @@ Copy-paste text for every store and download site. Store-specific fields are in 
 | Category | Utilities / Download managers (Chrome Web Store: Productivity → Tools) |
 | Platform | Windows 10 (1809+) and Windows 11, 64-bit |
 | Languages | English |
-| Installer | `Gale_Setup_0.7.0.exe` (or `Gale_0.7.0_x64.msi`), all users (Program Files), asks for administrator approval; updates in place |
+| Installer | `Gale_Setup_0.7.1.exe` (or `Gale_0.7.1_x64.msi`), all users (Program Files), asks for administrator approval; updates in place |
 
 ## One-line summary (≤ 80 characters)
 
@@ -96,14 +96,10 @@ https://github.com/faizzyhon/Gale/releases
 download manager, downloader, download accelerator, resume downloads, multi-connection, video downloader,
 torrent downloader, magnet links, Chrome download, open source, free, Windows 11
 
-## What's new in 0.7.0 (release notes)
+## What's new in 0.7.1 (release notes)
 
-- AI Models: download models from Hugging Face, pick a GGUF size, every large file checked by SHA-256, save into
-  LM Studio's folder
-- Servers that allow only a few connections are detected and respected
-- Faster recovery when a server keeps dropping the connection
-- Videos: subtitles and chapters inside the file, optional SponsorBlock
-- Clipboard watch (off by default) and six accent colours
+- Remember the download folder for each file type (video, music, documents...)
+- Donate link in About
 
 ## Developer bio (≤ 300 characters)
 
