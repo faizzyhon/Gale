@@ -76,6 +76,7 @@ export const api = {
   hfDownload: (repo: string, revision: string, paths: string[], folder: string) =>
     invoke<{ added: number; skipped: number }>("hf_download", { repo, revision, paths, folder }),
   setHfToken: (token: string | null) => invoke<void>("set_hf_token", { token }),
+  rememberFolder: (category: string, folder: string) => invoke<SettingsView>("remember_folder", { category, folder }),
   saveSettings: (settings: AppSettings) => invoke<SettingsView>("save_settings", { settings }),
   resetSettings: () => invoke<SettingsView>("reset_settings"),
   setProxyPassword: (password: string | null) => invoke<void>("set_proxy_password", { password }),

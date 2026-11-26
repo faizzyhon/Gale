@@ -717,3 +717,21 @@ pub async fn set_hf_token(state: State<'_, AppState>, token: Option<String>) -> 
     state.manager.set_hf_token(settings::hf_token());
     Ok(())
 }
+
+/// "Remember this folder for <category>" in the download dialogs. An empty folder forgets it.
+#[tauri::command]
+pub async fn remember_folder(state: State<'_, AppState>, category: String, folder: String) -> Res<SettingsView> {
+    let mut s = state.settings();
+    if folder.trim().is_empty() {
+        s.folders.remove(&category);
+    } else {
+        if !Path::new(folder.trim()).is_absolute() {
+            return Err(err("invalid_folder", "choose a full folder path"));
+        }
+        s.folders.insert(category, folder.trim().to_string());
+    }
+    let s = s.validated().map_err(|m| err("invalid_settings", m))?;
+    state.manager.db().set_setting(settings::KEY, &s).await?;
+    state.set_settings(s.clone());
+    Ok(view(s))
+}

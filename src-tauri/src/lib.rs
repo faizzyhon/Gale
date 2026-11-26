@@ -481,6 +481,7 @@ pub fn run() {
             commands::hf_folders,
             commands::hf_download,
             commands::set_hf_token,
+            commands::remember_folder,
             commands::test_connection,
             commands::list_queues,
             commands::save_queue,

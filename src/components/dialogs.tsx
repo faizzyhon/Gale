@@ -1,5 +1,7 @@
 import { FolderOpen } from "lucide-react";
 import { useEffect, useState } from "react";
+import { categorize, folderFor } from "../app/categorize";
+import { categoryLabel } from "../app/views";
 import { api, errorMessage } from "../services/api";
 import { useDownloads } from "../stores/downloads";
 import { toastInfo } from "../stores/toast";
@@ -30,8 +32,30 @@ function FolderInput({ value, onChange }: { value: string; onChange: (v: string)
 const VIDEO_PAGE = /^https?:\/\/([^/]+\.)?(youtube\.com|youtu\.be|vimeo\.com|dailymotion\.com|twitch\.tv|facebook\.com|instagram\.com|tiktok\.com|x\.com|twitter\.com)\//i;
 const STREAM_URL = /\.(m3u8|mpd)(\?|$)/i;
 
+/** "Remember this folder for Video": the next download of that type starts in this folder. */
+export function RememberFolder({ category, checked, onChange }: { category: string | undefined; checked: boolean; onChange: (v: boolean) => void }) {
+  if (!category) return null;
+  return (
+    <label className="-mt-1 flex items-center gap-2 text-[12px]">
+      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} />
+      Remember this folder for {categoryLabel(category)}
+    </label>
+  );
+}
+
+const lastSegment = (url: string) => {
+  try {
+    return decodeURIComponent(new URL(url).pathname.split("/").pop() ?? "");
+  } catch {
+    return "";
+  }
+};
+
 export function AddUrlDialog({ open, onClose, initial, onVideo }: { open: boolean; onClose: () => void; initial?: { url: string; fileName?: string | null; referrer?: string | null } | null; onVideo?: (url: string) => void }) {
   const settings = useDownloads((s) => s.settings);
+  const categories = useDownloads((s) => s.categories);
+  const setSettings = useDownloads((s) => s.setSettings);
+  const [remember, setRemember] = useState(false);
   const queues = useDownloads((s) => s.queues);
   const [queueId, setQueueId] = useState<number | "">("");
   const [url, setUrl] = useState("");
@@ -49,16 +73,20 @@ export function AddUrlDialog({ open, onClose, initial, onVideo }: { open: boolea
       setSha("");
       setError(null);
       setQueueId("");
-      setDir(settings?.downloadDir ?? "");
+      setRemember(false);
+      const cat = categorize(categories, initial?.fileName || lastSegment(initial?.url ?? ""));
+      setDir(settings ? folderFor(settings, cat) : "");
       setConn(settings?.connections ?? 8);
     }
-  }, [open, settings, initial]);
+  }, [open, initial]); // reset only when the dialog opens, not when remembering a folder updates settings
+  const category = url.trim() ? categorize(categories, name || lastSegment(url.trim()))?.name : undefined;
 
   const shaValid = sha === "" || /^[0-9a-fA-F]{64}$/.test(sha.trim());
   const submit = async (start: boolean) => {
     setBusy(true);
     setError(null);
     try {
+      if (remember && category && dir.trim()) setSettings(await api.rememberFolder(category, dir.trim()));
       await api.addDownload({
         url: url.trim(),
         saveDir: dir.trim(),
@@ -118,6 +146,7 @@ export function AddUrlDialog({ open, onClose, initial, onVideo }: { open: boolea
         <Field label="Save to">
           <FolderInput value={dir} onChange={setDir} />
         </Field>
+        <RememberFolder category={category} checked={remember} onChange={setRemember} />
         <div className="grid grid-cols-[1fr_120px] gap-3">
           <Field label="File name" hint="Leave empty to use the server's name">
             <input className={inputCls} value={name} onChange={(e) => setName(e.target.value)} spellCheck={false} />

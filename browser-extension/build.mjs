@@ -8,7 +8,7 @@ const firefox = process.argv.includes("--firefox"); // Firefox add-on (addons.mo
 const out = firefox ? "dist-firefox" : store ? "dist-store" : "dist";
 if (tests) {
   rmSync("dist-tests", { recursive: true, force: true });
-  await build({ entryPoints: ["tests/rules.test.ts"], bundle: true, platform: "node", format: "esm", outdir: "dist-tests", define: { __STORE__: "false" } });
+  await build({ entryPoints: ["tests/rules.test.ts"], bundle: true, platform: "node", format: "esm", outdir: "dist-tests", define: { __STORE__: "false", __FIREFOX__: "false" } });
 } else {
   rmSync(out, { recursive: true, force: true });
   mkdirSync(out, { recursive: true });
@@ -23,7 +23,7 @@ if (tests) {
     format: "iife", // content scripts cannot be modules
     target: firefox ? "firefox128" : "chrome116",
     outdir: out,
-    define: { __STORE__: String(store) },
+    define: { __STORE__: String(store), __FIREFOX__: String(firefox) },
     minify: true,
     legalComments: "none",
   });
@@ -37,7 +37,8 @@ if (tests) {
     manifest.background = { scripts: ["background.js"] };
     manifest.description = manifest.description.replace("Chrome", "Firefox");
     manifest.browser_specific_settings = {
-      gecko: { id: "gale@faizzyhon.com", strict_min_version: "128.0", data_collection_permissions: { required: ["none"] } },
+      // 142: data_collection_permissions needs Firefox 140 and Firefox for Android 142.
+      gecko: { id: "gale@faizzyhon.com", strict_min_version: "142.0", data_collection_permissions: { required: ["none"] } },
     };
   }
   writeFileSync(`${out}/manifest.json`, JSON.stringify(manifest, null, 2));

@@ -2,6 +2,9 @@
 // because the store rejects extensions that download YouTube media. The Gale app itself still supports it.
 declare const __STORE__: boolean;
 export const STORE_BUILD = __STORE__;
+declare const __FIREFOX__: boolean;
+/** Firefox add-on build: Chrome-only APIs are left out of the bundle. */
+export const FIREFOX_BUILD = __FIREFOX__;
 
 const YOUTUBE = /(^|\.)(youtube\.com|youtu\.be|youtube-nocookie\.com|googlevideo\.com)$/i;
 

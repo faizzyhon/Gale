@@ -141,6 +141,8 @@ export interface AppSettings {
   theme: "system" | "light" | "dark";
   downloadDir: string;
   categoryFolders: boolean;
+  /** Folders remembered per category name ("Video" → a folder). */
+  folders: Record<string, string>;
   notifications: boolean;
   startWithWindows: boolean;
   minimizeToTray: boolean;

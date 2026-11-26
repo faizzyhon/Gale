@@ -1,9 +1,11 @@
 import { FolderOpen, Search } from "lucide-react";
 import { useEffect, useState } from "react";
+import { folderFor } from "../app/categorize";
 import { api, errorMessage } from "../services/api";
 import { useDownloads } from "../stores/downloads";
 import type { MediaInfo } from "../types";
 import { bytes } from "../utils/format";
+import { RememberFolder } from "./dialogs";
 import { Button, Dialog, Field, inputCls } from "./ui";
 
 const fmtDuration = (s: number | null) =>
@@ -13,6 +15,9 @@ const fmtDuration = (s: number | null) =>
 export function MediaDialog({ open, onClose, initialUrl }: { open: boolean; onClose: () => void; initialUrl?: string | null }) {
   const settings = useDownloads((s) => s.settings);
   const queues = useDownloads((s) => s.queues);
+  const categories = useDownloads((s) => s.categories);
+  const setSettings = useDownloads((s) => s.setSettings);
+  const [remember, setRemember] = useState(false);
   const [url, setUrl] = useState("");
   const [dir, setDir] = useState("");
   const [info, setInfo] = useState<MediaInfo | null>(null);
@@ -41,7 +46,8 @@ export function MediaDialog({ open, onClose, initialUrl }: { open: boolean; onCl
   useEffect(() => {
     if (!open) return;
     setUrl(initialUrl ?? "");
-    setDir(settings?.downloadDir ?? "");
+    setDir(settings ? folderFor(settings, categories.find((c) => c.name === "Video")) : "");
+    setRemember(false);
     setInfo(null);
     setError(null);
     setQueueId("");
@@ -54,6 +60,7 @@ export function MediaDialog({ open, onClose, initialUrl }: { open: boolean; onCl
     setBusy("add");
     setError(null);
     try {
+      if (remember && dir.trim()) setSettings(await api.rememberFolder(opt.kind === "audio" ? "Audio" : "Video", dir.trim()));
       await api.addDownload({
         url: url.trim(),
         saveDir: dir.trim(),
@@ -146,6 +153,7 @@ export function MediaDialog({ open, onClose, initialUrl }: { open: boolean; onCl
                 </select>
               </Field>
             </div>
+            <RememberFolder category={opt?.kind === "audio" ? "Audio" : "Video"} checked={remember} onChange={setRemember} />
           </>
         )}
         {error && (

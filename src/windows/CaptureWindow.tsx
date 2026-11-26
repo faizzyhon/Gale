@@ -2,7 +2,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { motion } from "framer-motion";
 import { Clock, Download as DownloadIcon, FolderOpen } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { categorize } from "../app/categorize";
+import { categorize, folderFor } from "../app/categorize";
 import { categoryLabel } from "../app/views";
 import { Button, Field, inputCls } from "../components/ui";
 import { api, errorMessage } from "../services/api";
@@ -10,8 +10,6 @@ import { applyTheme } from "../stores/downloads";
 import type { Category, ProbeResult, Queue, SettingsView } from "../types";
 import { bytes } from "../utils/format";
 import { TitleBar } from "./TitleBar";
-
-const join = (dir: string, sub: string) => `${dir.replace(/[\\/]+$/, "")}${dir.includes("\\") ? "\\" : "/"}${sub}`;
 
 /** IDM-style "Download File Info": confirm a download the browser handed over. */
 export function CaptureWindow({ pendingId }: { pendingId: string }) {
@@ -27,6 +25,7 @@ export function CaptureWindow({ pendingId }: { pendingId: string }) {
   const [name, setName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [remember, setRemember] = useState(false);
   const touchedName = useRef(false);
 
   useEffect(() => {
@@ -42,7 +41,7 @@ export function CaptureWindow({ pendingId }: { pendingId: string }) {
         setName(n);
         const cat = categorize(c, n);
         setCatId(cat?.id ?? null);
-        setDir(s.categoryFolders && cat ? join(s.downloadDir, cat.subfolder) : s.downloadDir);
+        setDir(folderFor(s, cat));
       } catch (e) {
         setError(errorMessage(e));
       }
@@ -62,7 +61,7 @@ export function CaptureWindow({ pendingId }: { pendingId: string }) {
   const onCategory = (id: number) => {
     setCatId(id);
     const c = cats.find((x) => x.id === id);
-    if (settings?.categoryFolders && c) setDir(join(settings.downloadDir, c.subfolder));
+    if (settings && c) setDir(folderFor(settings, c));
   };
 
   const submit = async (later: boolean) => {
@@ -71,6 +70,8 @@ export function CaptureWindow({ pendingId }: { pendingId: string }) {
     setError(null);
     try {
       const main = queues.find((q) => q.isDefault);
+      const cat = cats.find((c) => c.id === catId);
+      if (remember && cat && dir.trim()) await api.rememberFolder(cat.name, dir.trim());
       await api.addDownload(
         { url: info.url, saveDir: dir.trim(), fileName: name.trim() || undefined, referrer: info.referrer ?? undefined, start: !later, queueId: later ? main?.id : undefined },
         pendingId,
@@ -113,6 +114,12 @@ export function CaptureWindow({ pendingId }: { pendingId: string }) {
             </Button>
           </div>
         </Field>
+        {catId != null && (
+          <label className="-mt-1 flex items-center gap-2 text-[12px]">
+            <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} />
+            Remember this folder for {categoryLabel(cats.find((c) => c.id === catId)?.name ?? "")}
+          </label>
+        )}
         <p className="text-[12px] text-fg-2">
           {probing && size == null ? (
             <span className="inline-flex items-center gap-2">

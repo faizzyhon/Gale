@@ -260,7 +260,7 @@ def home():
       </div>
       <div class="tab-panel" data-panel="firefox" hidden>
         <ol class="steps">
-          <li><div><b>Download {FIREFOX_ZIP}</b><p class="muted">Firefox 128 or later. Start Gale once first: it registers its helper with Firefox.</p></div></li>
+          <li><div><b>Download {FIREFOX_ZIP}</b><p class="muted">Firefox 142 or later. Start Gale once first: it registers its helper with Firefox.</p></div></li>
           <li><div><b>Load it</b><p class="muted">Open <code>about:debugging#/runtime/this-firefox</code>, click <b>Load Temporary Add-on</b> and pick the zip. Firefox keeps it until it restarts; a signed version for addons.mozilla.org is on the way.</p></div></li>
           <li><div><b>Allow it on all sites</b><p class="muted">In <code>about:addons</code> → Gale → <b>Permissions</b>, turn on access to all websites so it can catch downloads.</p></div></li>
         </ol>
@@ -732,7 +732,7 @@ FAQ = [
     ("Is Gale safe?", "The whole source code is public on GitHub, so anyone can check what it does. Gale doesn't collect data, has no account and contacts only the servers you download from. The installer isn't code-signed yet, which is why SmartScreen may warn about it; you can compare the file's SHA-256 with the one on the download page."),
     ("How is it faster than downloading in the browser?", "Gale opens several connections to the server and downloads different parts of the file at the same time. Many servers limit the speed of each connection, so several together use more of your bandwidth. If a server allows only one connection, Gale uses one."),
     ("Can it resume a download that stopped?", "Yes, if the server supports it, which most do. Paused or interrupted downloads continue where they stopped, even after closing Gale or restarting the PC. Gale checks that the file on the server hasn't changed before continuing."),
-    ("Which browsers does it work with?", "Chrome, Edge and Brave (version 116 or later) and Firefox 128 or later, on Windows, macOS and Linux. Other Chromium browsers that read Chrome's settings, such as Vivaldi and Opera, usually work too but aren't tested."),
+    ("Which browsers does it work with?", "Chrome, Edge and Brave (version 116 or later) and Firefox 142 or later, on Windows, macOS and Linux. Other Chromium browsers that read Chrome's settings, such as Vivaldi and Opera, usually work too but aren't tested."),
     ("Can it download AI models from Hugging Face?", "Yes, from version 0.7.0. Open AI Models, search or paste a model name, and pick a GGUF size or the weights. Gale checks every large file against the SHA-256 Hugging Face lists, can save straight into LM Studio's models folder, and uses your access token (kept in the system keychain) for gated models."),
     ("Can I download YouTube videos?", "Gale can save videos from YouTube and most other video sites in the quality you choose. Downloading may be against a site's terms, and some content is protected by copyright: only download what you have the right to. DRM-protected video (Netflix, most paid services) can't be downloaded."),
     ("Can Gale download torrents?", "Yes. Click a magnet or .torrent link in the browser, paste a magnet link into Add URL, or open a .torrent file from your PC. Gale stops sharing a torrent once it has finished downloading. Peers in a torrent can see your IP address, and you are responsible for what you download and share."),

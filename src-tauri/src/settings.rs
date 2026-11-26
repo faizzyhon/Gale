@@ -19,6 +19,8 @@ pub struct AppSettings {
     pub theme: Theme,
     pub download_dir: String,
     pub category_folders: bool,
+    /// Folders the user chose to remember per category ("Video" → D:\Videos), used by the download dialogs.
+    pub folders: std::collections::BTreeMap<String, String>,
     pub notifications: bool,
     pub start_with_windows: bool,
     pub minimize_to_tray: bool,
@@ -94,6 +96,7 @@ impl Default for AppSettings {
             theme: Theme::System,
             download_dir: String::new(),
             category_folders: false,
+            folders: Default::default(),
             notifications: true,
             start_with_windows: true,
             minimize_to_tray: true,
@@ -164,6 +167,7 @@ impl AppSettings {
         self.browser_excluded_domains = clean_list(self.browser_excluded_domains);
         self.browser_excluded_types = clean_list(self.browser_excluded_types);
         self.blocked_extensions = clean_list(self.blocked_extensions);
+        self.folders.retain(|cat, dir| !cat.is_empty() && cat.len() <= 64 && std::path::Path::new(dir).is_absolute());
         if !ACCENTS.contains(&self.accent.as_str()) {
             self.accent = "blue".into();
         }
@@ -276,7 +280,10 @@ mod tests {
         assert!(AppSettings { connections: 3, ..base.clone() }.validated().is_err());
         assert!(AppSettings { proxy_kind: ProxyKind::Http, proxy_host: "a b".into(), ..base.clone() }.validated().is_err());
         assert!(AppSettings { user_agent: "x\r\nEvil: 1".into(), ..base.clone() }.validated().is_err());
-        assert!(AppSettings { download_dir: "rel".into(), ..base }.validated().is_err());
+        assert!(AppSettings { download_dir: "rel".into(), ..base.clone() }.validated().is_err());
+        let abs = if cfg!(windows) { r"C:\Videos" } else { "/videos" };
+        let kept = AppSettings { folders: [("Video".into(), abs.into()), ("Music".into(), "relative".into())].into(), ..base }.validated().unwrap();
+        assert_eq!(kept.folders.len(), 1, "relative folders are dropped");
     }
 
     #[test]

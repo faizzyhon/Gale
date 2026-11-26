@@ -1,6 +1,7 @@
 import { FolderOpen } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { Button, Field, inputCls } from "../components/ui";
+import { categoryLabel } from "../app/views";
 import { api, errorMessage } from "../services/api";
 import { useDownloads } from "../stores/downloads";
 import { toastError, toastInfo } from "../stores/toast";
@@ -173,6 +174,30 @@ export function SettingsPage() {
                   <input type="number" min={0} max={20} className={inputCls} value={draft.maxRetries} onChange={(e) => set("maxRetries", Number(e.target.value) || 0)} />
                 </Field>
                 <p className="text-[12px] text-fg-3">Partial data is kept next to each file as “name.gale-part” until it completes, so resumes survive restarts.</p>
+                <Field label="Remembered folders" hint="Set with “Remember this folder” when you add a download. New downloads of that type start in this folder.">
+                  {Object.keys(draft.folders ?? {}).length === 0 ? (
+                    <p className="text-[12px] text-fg-3">None yet.</p>
+                  ) : (
+                    <ul className="flex flex-col gap-1">
+                      {Object.entries(draft.folders).map(([cat, dir]) => (
+                        <li key={cat} className="flex items-center gap-3 text-[13px]">
+                          <span className="w-36 shrink-0">{categoryLabel(cat)}</span>
+                          <span className="min-w-0 flex-1 truncate text-fg-2" title={dir}>
+                            {dir}
+                          </span>
+                          <Button
+                            onClick={() => {
+                              const { [cat]: _, ...rest } = draft.folders;
+                              set("folders", rest);
+                            }}
+                          >
+                            Forget
+                          </Button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </Field>
               </>
             )}
             {tab === "Browser" && <BrowserTab draft={draft} set={set} />}

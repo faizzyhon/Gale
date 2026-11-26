@@ -44,7 +44,14 @@ async function render() {
     li.append(name, st);
     ul.append(li);
   }
-  if (!ul.children.length) ul.innerHTML = `<li class="muted"><span>${ping.ok ? "No downloads yet" : "—"}</span></li>`;
+  if (!ul.children.length) {
+    const li = document.createElement("li");
+    const span = document.createElement("span");
+    li.className = "muted";
+    span.textContent = ping.ok ? "No downloads yet" : "—";
+    li.append(span);
+    ul.append(li);
+  }
 }
 
 $<HTMLInputElement>("enabled").onchange = async (e) => {

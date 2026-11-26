@@ -1,5 +1,5 @@
 // Service worker: download interception, context menus, media detection, popup/content routing.
-import { mediaBlocked } from "../shared/store";
+import { FIREFOX_BUILD, mediaBlocked } from "../shared/store";
 import { decide, decideMagnet, isDownloadLink, type AppRules } from "../shared/rules";
 import { type NativeResponse, native } from "../shared/native";
 import { cachedAppRules, loadSettings, saveSettings, type MediaItem, type WorkerMessage } from "../shared/settings";
@@ -98,7 +98,7 @@ async function sendDownload(url: string, opts: { filename?: string; referrer?: s
 
 const recentlySent = new Map<string, number>();
 
-if (chrome.downloads.onDeterminingFilename) {
+if (!FIREFOX_BUILD) {
   chrome.downloads.onDeterminingFilename.addListener((item, suggest) => {
     void handleDownload(item).finally(() => {
       try {

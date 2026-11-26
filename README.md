@@ -36,7 +36,7 @@ the old version and restarts Gale. Turn the check off in Settings → General.
   the first start needs right-click → **Open**. Install FFmpeg with `brew install ffmpeg` for video downloads.
 - Browser extension: unzip `Gale-Chrome-Extension-0.7.0.zip`, then in Chrome/Chromium/Edge/Brave open Extensions →
   Developer mode → **Load unpacked** → that folder. Start Gale once first so it registers itself with the browsers.
-- Firefox 128+ (any system): `Gale-Firefox-Extension-0.7.0.zip` → `about:debugging` → This Firefox → **Load Temporary
+- Firefox 142+ (any system): `Gale-Firefox-Extension-0.7.0.zip` → `about:debugging` → This Firefox → **Load Temporary
   Add-on**. Gale registers its helper with Firefox when it starts.
 
 On Linux and macOS the update bar opens the release page; install the new package the same way as above.
